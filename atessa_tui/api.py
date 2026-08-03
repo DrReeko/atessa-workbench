@@ -240,11 +240,14 @@ class AtessaAPI:
         messages = [{"role": "user", "content": "hi"}]
         start = asyncio.get_event_loop().time()
         try:
-            url = f"{self.cfg.base_url.rstrip('/')}/v1/chat/completions"
-            headers = {"Authorization": f"Bearer {self.cfg.api_key}", "Content-Type": "application/json"}
             payload = {"model": model, "messages": messages, "max_tokens": 1}
-            async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
-                res = await client.post(url, headers=headers, json=payload)
+            client = httpx.AsyncClient(
+                base_url=self.cfg.base_url,
+                headers={"Authorization": f"Bearer {self.cfg.api_key}"},
+                timeout=httpx.Timeout(timeout),
+            )
+            async with client:
+                res = await client.post("/chat/completions", json=payload)
                 elapsed = round((asyncio.get_event_loop().time() - start) * 1000)
                 if res.status_code == 200:
                     return {"model": model, "status": "ONLINE", "latency_ms": elapsed, "error": None}
@@ -255,7 +258,6 @@ class AtessaAPI:
         except Exception as e:
             elapsed = round((asyncio.get_event_loop().time() - start) * 1000)
             return {"model": model, "status": "UNAVAILABLE", "latency_ms": elapsed, "error": str(e)[:60]}
-
     async def ping_all_models(self, models: list[str], max_concurrency: int = 10) -> list[dict]:
         sem = asyncio.Semaphore(max_concurrency)
 
