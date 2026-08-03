@@ -620,6 +620,7 @@ class ModelsPane(ToolPane):
         Binding("o", "assign('ocr')", "→ ocr"),
         Binding("p", "assign('power')", "→ power"),
         Binding("i", "assign('image')", "→ image"),
+        Binding("k", "ping_health", "Ping Health"),
         Binding("r", "reload", "Reload"),
     ]
 
@@ -656,10 +657,10 @@ class ModelsPane(ToolPane):
                 yield Label("LIVE CATALOG · type to filter", classes="models-band")
                 with Horizontal(id="model-filter-row"):
                     yield Input(placeholder="Filter model IDs…", id="model-filter")
+                    yield Button("Ping", id="models-ping")
                     yield Button("Reload", id="models-reload")
                     yield Button("Credit costs", id="models-import")
                 yield OptionList(Option("loading catalog…", disabled=True), id="model-catalog")
-            with Vertical(id="models-routes-pane"):
                 yield Static("[b]CURRENT RUNTIME ROUTES[/b]", id="models-routes-title")
                 yield DataTable(id="models-table", cursor_type="none")
                 yield Static(
@@ -748,6 +749,26 @@ class ModelsPane(ToolPane):
             self._model_detail(model) if model else ""
         )
 
+    @on(Button.Pressed, "#models-ping")
+    def action_ping_health(self) -> None:
+        if not self._visible_models:
+            self.notify("No visible models to ping", severity="warning")
+            return
+        status = self.query_one("#models-status", Static)
+        status.update(f"Pinging {len(self._visible_models)} models…")
+        self.run_worker(self._ping_worker(list(self._visible_models)), thread=False)
+
+    async def _ping_worker(self, models: list[str]) -> None:
+        try:
+            results = await self.api.ping_all_models(models)
+            online = sum(1 for r in results if r["status"] == "ONLINE")
+            unavail = sum(1 for r in results if r["status"] != "ONLINE")
+            self.query_one("#models-status", Static).update(
+                f"Health Probe Complete · [green]{online} Online[/green] · [red]{unavail} Unavailable[/red]"
+            )
+            self.notify(f"Ping complete: {online} online, {unavail} unavailable")
+        except Exception as err:
+            self.notify(f"Ping failed: {err}", severity="error")
     @on(Button.Pressed, "#models-reload")
     def _reload_pressed(self, event: Button.Pressed) -> None:
         event.stop()
