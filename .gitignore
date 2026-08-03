@@ -1,0 +1,48 @@
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+.pyi-venv/
+.beta-venv/
+.beta-install/
+.beta-home/
+
+# Build & packaging artifacts
+build/
+dist/
+*.egg-info/
+*.whl
+*.tar.gz
+.wheels/
+.wheel-test/
+Output/
+
+# IDE & OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local credentials & runtime state
+config
+spend.json
+weights.json
+arena.json
+*.corrupt
+
+# Test & render outputs
+renders/
+prender/
+.verify-atessa-home/
+.compare*
+.draft*
+*.png
+*.svg

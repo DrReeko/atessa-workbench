@@ -1,0 +1,1422 @@
+/* Atessa production workbench — dense, calm, and keyboard/mouse equivalent. */
+
+/* Palette and rhythm tokens. */
+$canvas: #070b11;
+$workspace: #090e15;
+$surface: #0e1620;
+$surface-raised: #14202d;
+$surface-hover: #1a2938;
+$sidebar: #182431;
+$sidebar-raised: #1d2b3a;
+$inspector: #111b26;
+$line: #2b3b4d;
+$line-soft: #1c2a39;
+$ink: #dbe4ed;
+$ink-strong: #f0f5f9;
+$muted: #8795a6;
+$quiet: #627183;
+$accent: #63d7c7;
+$accent-ink: #071411;
+$blue: #9bb7ff;
+$warning: #e6bd73;
+$danger: #ff8d8d;
+$success-surface: #102c28;
+
+/* Four nesting levels inside a tool pane, so sub-areas read as nested:
+   L0 pane -> L1 header band -> L2 control band -> L3 result surface. */
+$band: #0b121a;
+$control-band: #101a26;
+$result-surface: #16212e;
+
+Screen {
+    background: $canvas;
+    color: $ink;
+}
+
+/* Controls: normal actions are one terminal row, fields are three. */
+Button {
+    width: auto;
+    min-width: 0;
+    height: 1;
+    min-height: 1;
+    padding: 0 1;
+    border: none;
+    background: $surface-raised;
+    color: $ink;
+}
+
+Button:hover {
+    background: $surface-hover;
+    color: $ink-strong;
+}
+
+Button:focus {
+    background: $accent;
+    color: $accent-ink;
+    text-style: bold;
+}
+
+Button:disabled {
+    background: $surface;
+    color: $quiet;
+}
+
+Button.-primary, Button.-success {
+    background: $accent;
+    color: $accent-ink;
+    text-style: bold;
+}
+
+Button.-primary:hover, Button.-success:hover {
+    background: #82e4d6;
+}
+
+Button.-error {
+    background: #5c292d;
+    color: $ink-strong;
+}
+
+Input, TextArea {
+    border: tall $line;
+    background: $surface;
+    color: $ink;
+}
+
+Input:focus, TextArea:focus {
+    border: tall $accent;
+}
+
+/* Select draws no border of its own: Textual nests the visible value inside
+   SelectCurrent, which carries the border. Bordering both clips the value. */
+Select {
+    border: none;
+    height: 3;
+    background: transparent;
+    color: $ink;
+}
+
+Input {
+    height: 3;
+}
+
+TextArea {
+    min-height: 4;
+}
+
+Select > SelectCurrent {
+    height: 3;
+    min-height: 3;
+    border: tall $line;
+    padding: 0 1;
+    background: $surface-raised;
+    color: $ink;
+}
+
+Select > SelectCurrent Static#label,
+Select > SelectCurrent.-has-value Static#label {
+    width: 1fr;
+    color: $ink;
+    background: transparent;
+}
+
+Select > SelectCurrent .arrow {
+    width: 3;
+    color: $accent;
+    background: transparent;
+    text-style: bold;
+}
+
+Select:focus > SelectCurrent {
+    border: tall $accent;
+    background: $surface-hover;
+}
+
+SelectOverlay {
+    border: tall $accent;
+    background: $surface-raised;
+    color: $ink;
+}
+
+Checkbox, SelectionList {
+    color: $muted;
+}
+
+Checkbox:focus {
+    color: $ink-strong;
+}
+
+Markdown, Static, Label {
+    background: transparent;
+}
+
+Markdown {
+    color: $ink;
+}
+
+MarkdownH1, MarkdownH2, MarkdownH3 {
+    color: $ink-strong;
+}
+
+DataTable, OptionList, SelectionList, RichLog, Log {
+    border: tall $line;
+    background: $surface;
+    color: $ink;
+    scrollbar-gutter: stable;
+}
+
+DataTable > .datatable--header {
+    background: $surface-raised;
+    color: $accent;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #263c50;
+    color: $ink-strong;
+}
+
+OptionList > .option-list--option-highlighted,
+SelectionList > .selection-list--button-selected {
+    background: #21374a;
+    color: $ink-strong;
+}
+
+TabbedContent, ContentSwitcher {
+    background: transparent;
+}
+
+Tab {
+    height: 2;
+    padding: 0 2;
+    background: $canvas;
+    color: $muted;
+}
+
+Tab:hover {
+    background: $surface-raised;
+    color: $ink;
+}
+
+Tab.-active {
+    background: $surface;
+    color: $accent;
+    text-style: bold;
+}
+
+LoadingIndicator {
+    height: 1;
+    color: $accent;
+}
+
+/* Shell: the side rail is lightest, the inspector is intermediate, and the
+   work surface is the darkest plane. Borders only separate real regions. */
+#app-shell, #shell {
+    width: 100%;
+    height: 1fr;
+    background: $canvas;
+}
+
+#sidebar {
+    width: 25;
+    min-width: 22;
+    height: 100%;
+    background: $sidebar;
+    border-right: solid #3a4b5d;
+}
+
+#sidebar.hidden-panel {
+    display: none;
+}
+
+#brand {
+    height: 3;
+    padding: 1 1 0 1;
+    background: $sidebar-raised;
+    border-bottom: solid #3a4b5d;
+}
+
+#brand-copy {
+    width: 1fr;
+    height: 1;
+    color: $ink-strong;
+}
+
+#tool-filter {
+    margin: 1 1 0 1;
+    background: #111a24;
+}
+
+#tool-list, #nav {
+    height: 1fr;
+    padding: 0;
+    border: none;
+    background: $sidebar;
+    scrollbar-size-vertical: 1;
+}
+
+#tool-list > ListItem, #nav > ListItem {
+    height: 1;
+    padding: 0 1 0 2;
+    background: transparent;
+    color: #a0adba;
+}
+
+#tool-list > ListItem:hover, #nav > ListItem:hover {
+    background: #223241;
+    color: $ink-strong;
+}
+
+#tool-list > ListItem.--highlight, #nav > ListItem.--highlight {
+    padding-left: 1;
+    border-left: thick $accent;
+    background: #293c4d;
+    color: $ink-strong;
+}
+
+#tool-list > .nav-section {
+    height: 2;
+    padding: 1 0 0 1;
+    color: #758597;
+    text-style: bold;
+}
+#nav > ListItem:disabled {
+    height: 2;
+    padding: 1 0 0 1;
+    background: transparent;
+    color: #758597;
+    opacity: 100%;
+}
+
+/* Short terminals: drop optional rail chrome so the tool list never scrolls. */
+AtessaApp.-short #brand {
+    height: 1;
+    padding: 0 1;
+}
+
+AtessaApp.-short #tool-filter {
+    margin: 0 1;
+}
+
+AtessaApp.-short #api-strip {
+    display: none;
+}
+
+AtessaApp.-short #tool-list > .nav-section,
+AtessaApp.-short #nav > ListItem:disabled {
+    height: 1;
+    padding: 0 0 0 1;
+}
+
+.nav-group {
+    color: #758597;
+    text-style: bold;
+}
+
+ToolItem {
+    layout: horizontal;
+}
+
+.nav-title {
+    width: 1fr;
+}
+
+.nav-key {
+    width: 3;
+    text-align: right;
+    color: #718193;
+}
+
+#api-strip {
+    height: 4;
+    padding: 1 2;
+    border-top: solid #3a4b5d;
+    background: $sidebar-raised;
+}
+
+#main-column {
+    width: 1fr;
+    height: 100%;
+    background: $canvas;
+}
+
+#topbar {
+    height: 3;
+    padding: 0 1 0 2;
+    align-vertical: middle;
+    border-bottom: solid $line;
+    background: #0c131c;
+}
+
+/* A compact active-tool marker keeps context visible without repeating the
+   tool title or turning the header into a mostly-empty banner. */
+#tool-mark {
+    width: 3;
+    height: 1;
+    content-align: center middle;
+    text-align: center;
+    text-style: bold;
+    color: #06222c;
+    background: $accent;
+    margin-right: 1;
+}
+
+#page-copy {
+    width: 1fr;
+    height: 1;
+    content-align-vertical: middle;
+}
+
+#breadcrumb {
+    height: 1;
+    color: $accent;
+    text-style: bold;
+}
+
+#page-title {
+    display: none;
+}
+
+#guide-button {
+    width: 10;
+    margin-right: 1;
+    color: $blue;
+}
+
+#command-button {
+    width: 15;
+    margin-right: 1;
+    color: $muted;
+}
+
+#ready-badge {
+    width: 9;
+    height: 1;
+    margin-right: 1;
+    text-align: center;
+    color: $accent;
+}
+
+#ready-badge.running {
+    color: $warning;
+}
+
+#run-button {
+    width: auto;
+    max-width: 24;
+}
+
+#workspace-row {
+    width: 100%;
+    height: 1fr;
+    background: $canvas;
+}
+
+#workspace, #switcher {
+    width: 1fr;
+    height: 100%;
+    background: $canvas;
+}
+
+#workspace > ContentSwitcher, #switcher {
+    width: 100%;
+    height: 100%;
+    background: $workspace;
+}
+
+/* Tool grammar. ToolPane fills the route but children keep intrinsic height;
+   only explicitly scrollable result widgets grow when content warrants it. */
+ToolPane {
+    width: 100%;
+    height: 100%;
+    padding: 0 1 1 1;
+    overflow-y: auto;
+    background: $workspace;
+}
+
+.pane-head, .page-head {
+    width: 100%;
+    height: 3;
+    padding: 0 1;
+    border-bottom: solid $line;
+    background: $band;
+}
+
+.purpose {
+    height: 1;
+    color: $ink-strong;
+}
+
+.flow, .pane-flow {
+    height: 1;
+    color: $muted;
+}
+
+/* Bottom-of-pane capability line: the tool's payoff plus live prereq state. */
+.capability-strip {
+    dock: bottom;
+    width: 100%;
+    height: auto;
+    padding: 0 1;
+    color: #7d8fa1;
+    background: #0b121a;
+    border-top: solid $line;
+}
+
+#models-detail {
+    height: 2;
+    padding: 0 1;
+    color: $accent;
+}
+
+WeightsImportScreen {
+    align: center middle;
+    background: rgba(3, 6, 10, 0.78);
+}
+
+WeightsImportScreen #import-dialog {
+    width: 84;
+    height: 30;
+    padding: 1 2;
+    border: tall $accent;
+    background: $surface;
+}
+
+WeightsImportScreen #import-head {
+    height: 3;
+    border-bottom: solid $line;
+}
+
+WeightsImportScreen #import-title {
+    width: 1fr;
+    height: 1;
+    color: $ink-strong;
+    text-style: bold;
+}
+
+WeightsImportScreen #import-close {
+    width: auto;
+    min-width: 12;
+}
+
+WeightsImportScreen #import-steps {
+    height: 4;
+    padding-top: 1;
+    color: $muted;
+}
+
+WeightsImportScreen TextArea#import-paste {
+    height: 1fr;
+    min-height: 6;
+    border: round $line;
+}
+
+WeightsImportScreen #import-result {
+    height: 4;
+    padding-top: 1;
+    color: $accent;
+}
+
+WeightsImportScreen #import-actions {
+    height: 3;
+    align-horizontal: right;
+}
+
+.cost-preview {
+    height: 2;
+    padding: 0 1;
+    color: $accent;
+}
+
+AtessaApp.-short .capability-strip,
+AtessaApp.-compact .capability-strip {
+    display: none;
+}
+
+.field, .field-label, .pane-title {
+    height: 1;
+    color: $muted;
+    text-style: bold;
+}
+
+ToolPane > .field, ToolPane > .field-label {
+    margin: 1 1 0 1;
+}
+.core-flow {
+    width: auto;
+    height: 2;
+    margin: 0 1;
+    padding: 0 1;
+    color: $muted;
+    background: $band;
+    border-bottom: solid $line-soft;
+}
+
+/* Production panes use semantic IDs where a generic band class is not useful. */
+#chat-compose, #search-controls, #read-controls, #command-suggest-row,
+#activity-filter-row, #explain-actions, #git-review-tab .git-actions,
+#git-commit-tab .git-actions, #command-actions, #arena-buttons {
+    width: 1fr;
+    margin-left: 1;
+    margin-right: 1;
+    background: $control-band;
+}
+
+#chat-compose > Button, #search-controls > Button, #read-controls > Button,
+#command-suggest-row > Button, #activity-filter-row > Button,
+#explain-actions > Button, .git-actions > Button, #command-actions > Button {
+    height: 1;
+    margin-top: 1;
+}
+
+#chat-model-band, #search-status, #read-status, #models-status {
+    width: 1fr;
+    height: 1;
+    margin: 0 1;
+    padding: 0 1;
+    color: $muted;
+    background: $control-band;
+    border-bottom: solid $line-soft;
+}
+
+#chat-log, #search-results, #read-page-scroll {
+    width: 1fr;
+    margin-left: 1;
+    margin-right: 1;
+    padding-left: 1;
+    padding-right: 1;
+    border: none;
+    border-top: solid $line;
+    background: $result-surface;
+}
+
+.chat-user, .chat-assistant {
+    height: auto;
+    margin-top: 1;
+    padding-left: 1;
+}
+
+.chat-user { border-left: thick $blue; }
+.chat-assistant { border-left: thick $accent; }
+
+.accent {
+    color: $accent;
+}
+
+.muted {
+    color: $muted;
+}
+
+.warning-line {
+    height: auto;
+    padding: 0 1;
+    color: $warning;
+}
+
+.push {
+    width: 1fr;
+    text-align: right;
+}
+
+/* Attached request/action bands share the same edge and surface. */
+.input-row, .action-row, .toolbar, .button-row, .actions, .bar {
+    width: auto;
+    height: 4;
+    margin: 0 1;
+    padding: 1 0 0 0;
+    background: $control-band;
+}
+
+.input-row > Input, .input-row > TextArea {
+    width: 1fr;
+}
+
+.input-row > Select {
+    width: 22;
+    margin-left: 1;
+}
+
+.input-row > Button,
+.action-row > Button,
+.toolbar > Button,
+.button-row > Button,
+.actions > Button,
+.bar > Button {
+    width: auto;
+    margin-left: 1;
+    margin-top: 1;
+}
+
+.input-row > Button:first-child,
+.action-row > Button:first-child,
+.toolbar > Button:first-child,
+.button-row > Button:first-child,
+.actions > Button:first-child,
+.bar > Button:first-child {
+    margin-left: 0;
+}
+#arena-buttons {
+    height: 3;
+}
+
+#arena-buttons > Button {
+    height: 1;
+    margin-top: 1;
+}
+
+#council-models, #bench-models {
+    width: auto;
+    height: 8;
+    margin: 0 1;
+    border: tall $line;
+}
+
+.model-picker-grid {
+    height: auto;
+    grid-gutter: 0 1;
+    padding: 0 1;
+}
+
+.model-picker-grid > Checkbox {
+    width: 1fr;
+    height: 1;
+    padding: 0 1;
+}
+
+.model-picker-empty {
+    height: 1;
+    color: $muted;
+}
+
+#council-results, #bench-table, #arena-board,
+#explain-scroll, #git-review-scroll, #command-log {
+    width: 1fr;
+    height: auto;
+    margin-left: 1;
+    margin-right: 1;
+    border: none;
+    border-top: solid $line;
+    background: $result-surface;
+}
+
+#council-results, #explain-scroll, #git-review-scroll {
+    min-height: 5;
+    max-height: 22;
+    padding-left: 1;
+    padding-right: 1;
+}
+
+#arena-status, #command-context, #command-risk, #git-result,
+#activity-empty {
+    width: auto;
+    height: auto;
+    min-height: 1;
+    margin-left: 1;
+    margin-right: 1;
+    color: $muted;
+}
+
+.stat-line, .history-line {
+    width: auto;
+    margin: 0 1;
+    background: $band;
+    color: $muted;
+}
+
+.stat-line {
+    height: 3;
+    padding: 1 1 0 1;
+    border-bottom: solid $line-soft;
+}
+
+.history-line {
+    height: 2;
+    padding: 0 1;
+}
+
+.chip, .safe-chip {
+    width: auto;
+    height: 1;
+    margin-right: 1;
+    padding: 0 1;
+    background: $surface-raised;
+    color: $muted;
+}
+
+.safe-chip {
+    background: $success-surface;
+    color: $accent;
+}
+
+/* Splits align at a common top edge; result regions start compact rather than
+   manufacturing large empty rectangles. */
+.body-split, .result-split {
+    width: auto;
+    height: 1fr;
+    margin: 0 1;
+    padding-top: 1;
+    background: $workspace;
+}
+
+.result-split {
+    padding-top: 0;
+}
+
+.form-pane, .list-pane, .result-pane, .input-pane, .diagnosis-pane,
+.preview-pane, .answer-card {
+    height: 100%;
+    padding: 1;
+    border: none;
+    border-top: solid $line;
+    background: $surface;
+}
+
+.form-pane, .list-pane, .input-pane {
+    width: 2fr;
+    margin-right: 1;
+    background: $control-band;
+}
+
+.result-pane, .diagnosis-pane, .preview-pane {
+    width: 3fr;
+    overflow-y: auto;
+    background: $result-surface;
+}
+
+.list-pane {
+    overflow-y: auto;
+}
+#arena-panels {
+    width: auto;
+    height: 1fr;
+    min-height: 8;
+    margin: 0 1;
+}
+
+.arena-panel {
+    width: 1fr;
+    padding: 0 1;
+    border: none;
+    border-top: solid $line;
+    background: $result-surface;
+}
+
+.arena-panel:first-child {
+    margin-right: 1;
+}
+
+#models-layout {
+    width: auto;
+    height: 1fr;
+    margin: 0 1;
+}
+
+#models-catalog-pane {
+    width: 1fr;
+    margin-right: 1;
+}
+
+#models-routes-pane {
+    width: 2fr;
+    max-width: 58;
+}
+
+#model-filter-row, #models-assignments {
+    height: 3;
+}
+
+#models-assignments > Button {
+    height: 1;
+    margin-top: 1;
+    margin-right: 1;
+}
+
+#model-catalog, #models-table {
+    border: none;
+    border-top: solid $line;
+}
+
+.narrow-pane {
+    width: 31;
+    min-width: 25;
+}
+
+.compact-form {
+    width: 38;
+    min-width: 32;
+}
+
+.compact-form .input-row {
+    margin: 1 0;
+}
+
+.result-pane > .pane-title, .list-pane > .pane-title {
+    margin-bottom: 1;
+}
+
+.dense-row {
+    height: 3;
+    padding: 1;
+    border-bottom: solid $line-soft;
+    background: #111d29;
+    color: $muted;
+}
+
+.dense-row:hover, .dense-row.selected {
+    padding-left: 0;
+    border-left: thick $accent;
+    background: #1c3041;
+    color: $ink;
+}
+
+.facts, .guidance {
+    height: auto;
+    padding: 1;
+    background: $band;
+    color: $muted;
+}
+
+.facts {
+    border-top: solid $line-soft;
+}
+
+.facts:empty, .guidance:empty, .history-line:empty,
+RichLog:empty, Log:empty {
+    display: none;
+}
+
+.conversation {
+    height: 1fr;
+    margin: 0 1;
+    border-top: none;
+}
+
+.record-meta {
+    height: 1;
+    margin-top: 1;
+    color: $muted;
+    text-style: bold;
+}
+
+.short-editor {
+    height: 4;
+    margin: 0 1;
+}
+
+.medium-editor {
+    height: 7;
+}
+
+.error-editor {
+    height: 1fr;
+    min-height: 9;
+}
+
+.preview {
+    height: auto;
+    min-height: 8;
+    max-height: 24;
+    content-align: center middle;
+    text-align: center;
+    border-top: solid #36546e;
+    background: #102036;
+}
+
+.command-preview {
+    width: auto;
+    height: auto;
+    min-height: 3;
+    margin: 0 1;
+    padding: 1;
+    border-left: thick $warning;
+    background: #0a131c;
+    color: $accent;
+}
+
+.command-log {
+    width: auto;
+    height: auto;
+    min-height: 3;
+    max-height: 12;
+    margin: 0 1;
+}
+
+.dense-tabs {
+    height: 1fr;
+    margin: 0 1;
+    background: $band;
+}
+
+.dense-tabs ContentSwitcher {
+    height: 1fr;
+    background: $workspace;
+}
+
+.role-map {
+    width: 34;
+    margin-left: 1;
+}
+
+.verdict-pane {
+    border-left: thick $accent;
+}
+
+.response-list {
+    width: 2fr;
+    margin-left: 1;
+}
+
+.answer-card {
+    width: 1fr;
+    margin-right: 1;
+}
+
+.answer-card Button {
+    dock: bottom;
+}
+
+/* Common production pane IDs. Inputs align with the pane-head inset. */
+#search-query, #read-url, #bench-prompt, #activity-filter, #model-filter,
+#vision-question, #arena-prompt, #command-request,
+#image-prompt, #view-path, #view-question, #shot-question {
+    margin-left: 1;
+    margin-right: 1;
+}
+
+#image-opts, #shot-actions {
+    width: auto;
+    margin: 0 1;
+}
+
+#image-opts > Select {
+    width: 1fr;
+}
+
+#image-opts > Select {
+    margin-left: 1;
+}
+
+#shot-actions {
+    height: 3;
+    padding-top: 1;
+}
+
+#image-result, #view-out, #shot-out {
+    width: auto;
+    height: auto;
+    min-height: 3;
+    max-height: 20;
+    margin: 1 1 0 1;
+    border: tall $line;
+    background: $result-surface;
+}
+
+#view-note, #shot-path {
+    width: auto;
+    height: auto;
+    margin: 0 1;
+    color: $muted;
+}
+
+#view-note:empty, #shot-path:empty {
+    display: none;
+}
+#explain-input, #git-message {
+    width: 1fr;
+    margin-left: 1;
+    margin-right: 1;
+}
+
+#command-preview {
+    width: auto;
+    height: auto;
+    min-height: 3;
+    margin: 0 1;
+    padding: 0 1;
+    border: none;
+    border-left: thick $warning;
+    background: #0a131c;
+    color: $accent;
+}
+
+#activity-filter-row {
+    height: 3;
+}
+
+#activity-table, #activity-artifacts, #activity-log {
+    border: none;
+    border-top: solid $line;
+    background: $result-surface;
+}
+
+#bench-table {
+    height: auto;
+    min-height: 8;
+    max-height: 20;
+    margin: 0 1;
+    border-top: solid $line;
+}
+
+#models-table {
+    width: 1fr;
+    height: 100%;
+}
+
+/* Inspector is deliberately between sidebar and canvas in luminance. Empty
+   optional blocks disappear, eliminating detached mystery boxes. */
+#inspector {
+    width: 36;
+    min-width: 32;
+    height: 100%;
+    padding: 1;
+    overflow-y: auto;
+    border-left: solid #304153;
+    background: $inspector;
+}
+
+#inspector.hidden-panel, #inspector.hidden {
+    display: none;
+}
+
+#inspector-head {
+    height: 2;
+    border-bottom: solid $line;
+}
+
+#inspector-head .pane-title {
+    width: 1fr;
+}
+
+#close-inspector {
+    width: 3;
+}
+
+#inspector .field-label {
+    height: 2;
+    margin-top: 1;
+}
+#insp-title, #insp-activity-title {
+    height: 2;
+    color: $ink-strong;
+    text-style: bold;
+}
+
+#insp-roles {
+    width: 100%;
+    height: auto;
+    min-height: 8;
+    max-height: 18;
+    margin-bottom: 1;
+}
+
+#insp-activity {
+    height: auto;
+    min-height: 3;
+    padding: 1;
+    border-top: solid $line-soft;
+    background: #152230;
+    color: $muted;
+}
+
+#role-select, #route-role, #route-model {
+    width: 100%;
+}
+
+#context-title {
+    height: auto;
+    margin-top: 1;
+    color: $ink-strong;
+    text-style: bold;
+}
+
+#context-help {
+    height: auto;
+    max-height: 10;
+    padding: 1;
+    border-left: thick $blue;
+    background: #152230;
+    color: $ink;
+}
+
+#context-help:empty, #context-title:empty, #context-flow:empty {
+    display: none;
+}
+
+#context-flow {
+    height: auto;
+    padding: 1 0;
+    color: $muted;
+}
+
+#price-badge {
+    width: 7;
+    height: 1;
+    margin: 1 0;
+    text-align: center;
+    background: $accent;
+    color: $accent-ink;
+    text-style: bold;
+}
+
+.inspector-facts {
+    height: auto;
+    border: none;
+    border-top: solid $line-soft;
+    border-bottom: solid $line-soft;
+    background: #152230;
+}
+
+#token-meter {
+    height: 2;
+    margin-top: 1;
+    padding: 0 1;
+    background: #182636;
+    color: $muted;
+}
+
+/* Exactly one bottom chrome band. The application status owns runtime state;
+   Textual's Footer is suppressed to avoid the duplicate-bar defect. */
+Footer {
+    display: none;
+}
+
+#statusbar {
+    height: 2;
+    padding: 0 1;
+    border-top: solid #304153;
+    background: #0c131b;
+    color: $muted;
+}
+
+#mode-indicator {
+    width: 8;
+    margin-right: 1;
+    text-align: center;
+    background: $accent;
+    color: $accent-ink;
+    text-style: bold;
+}
+
+#endpoint-status, #last-activity, .status-item {
+    width: auto;
+    margin-right: 2;
+    color: $muted;
+}
+
+#last-activity {
+    width: 1fr;
+    text-align: right;
+}
+
+/* Unlock: one screen showing live capability state and the exact fix commands. */
+UnlockScreen {
+    align: center middle;
+    background: rgba(3, 6, 10, 0.78);
+}
+
+UnlockScreen #unlock-dialog {
+    width: 78;
+    height: 32;
+    padding: 1 2;
+    border: tall $accent;
+    background: $surface;
+}
+
+UnlockScreen #unlock-head {
+    height: 3;
+    border-bottom: solid $line;
+}
+
+UnlockScreen #unlock-title {
+    width: 1fr;
+    height: 1;
+    color: $ink-strong;
+    text-style: bold;
+}
+
+UnlockScreen #unlock-close {
+    width: auto;
+    min-width: 12;
+}
+
+UnlockScreen #unlock-summary {
+    height: 2;
+    padding-top: 1;
+    color: $accent;
+    text-style: bold;
+}
+
+UnlockScreen #unlock-body {
+    height: 1fr;
+}
+
+UnlockScreen #unlock-content {
+    height: auto;
+    color: $ink;
+}
+
+UnlockScreen #unlock-hint {
+    height: 1;
+    padding-top: 1;
+    color: $muted;
+}
+
+/* Compact guide: readable, bounded, and never a second full-screen workspace. */
+GuideModal {
+    align: center middle;
+    background: rgba(3, 6, 10, 0.78);
+}
+
+GuideModal #guide-dialog {
+    width: 76;
+    height: auto;
+    max-height: 30;
+    padding: 1 2;
+    border: tall $accent;
+    background: $surface;
+}
+
+#guide-head {
+    height: 2;
+    border-bottom: solid $line;
+}
+
+#guide-title {
+    width: 1fr;
+    color: $ink-strong;
+    text-style: bold;
+}
+
+#guide-close {
+    width: 3;
+}
+
+#guide-copy {
+    height: auto;
+    max-height: 11;
+    padding: 1 0;
+}
+
+.example-button {
+    width: 100%;
+    height: 2;
+    margin-bottom: 1;
+    text-align: left;
+    background: $surface-raised;
+    color: $ink;
+}
+
+.example-button:hover, .example-button:focus {
+    background: #24394b;
+    color: $ink-strong;
+}
+
+.guide-hint {
+    height: 1;
+    color: $quiet;
+}
+GuideModal #guide-dialog > Static {
+    height: auto;
+    margin-bottom: 1;
+}
+
+GuideModal #guide-dialog > Button {
+    width: 100%;
+    height: 2;
+    margin-top: 0;
+    margin-bottom: 1;
+    text-align: left;
+    background: $surface-raised;
+}
+
+GuideModal #guide-dialog > #btn-close {
+    width: auto;
+    height: 1;
+    margin-bottom: 0;
+    text-align: center;
+}
+
+/* 100-column class: preserve the main task, remove supporting chrome. */
+AtessaApp.-medium #inspector, Screen.narrow #inspector {
+    display: none;
+}
+
+AtessaApp.-medium #command-button {
+    display: none;
+}
+
+AtessaApp.-medium #sidebar, Screen.narrow #sidebar {
+    width: 22;
+    min-width: 20;
+}
+
+AtessaApp.-medium .narrow-pane {
+    width: 27;
+}
+
+AtessaApp.-medium #guide-dialog, Screen.narrow #guide-dialog {
+    width: 68;
+}
+
+/* 72-column class: navigation becomes a keyboard-toggle surface and horizontal
+   work splits stack without losing their aligned band edges. */
+AtessaApp.-compact #sidebar,
+Screen.tiny #sidebar,
+AtessaApp.-compact #inspector,
+Screen.tiny #inspector,
+AtessaApp.-compact #command-button,
+AtessaApp.-compact #ready-badge {
+    display: none;
+}
+
+AtessaApp.-compact #topbar {
+    padding-left: 1;
+}
+
+AtessaApp.-compact #guide-button {
+    width: 8;
+}
+
+AtessaApp.-compact #run-button {
+    max-width: 18;
+}
+
+AtessaApp.-compact .pane-head,
+AtessaApp.-compact .page-head {
+    height: 5;
+}
+
+AtessaApp.-compact .body-split,
+AtessaApp.-compact .result-split,
+Screen.tiny .body-split,
+Screen.tiny .result-split {
+    layout: vertical;
+    height: auto;
+}
+
+AtessaApp.-compact .body-split > *,
+AtessaApp.-compact .result-split > *,
+Screen.tiny .body-split > *,
+Screen.tiny .result-split > * {
+    width: 100%;
+    height: auto;
+    min-height: 6;
+    max-height: 18;
+    margin: 0 0 1 0;
+}
+
+AtessaApp.-compact .compact-form,
+AtessaApp.-compact .narrow-pane,
+AtessaApp.-compact .role-map {
+    width: 100%;
+    min-width: 0;
+}
+
+AtessaApp.-compact .input-row > Select {
+    width: 17;
+}
+
+AtessaApp.-compact #guide-dialog, Screen.tiny #guide-dialog {
+    width: 62;
+    max-height: 28;
+}
+

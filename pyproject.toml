@@ -1,0 +1,52 @@
+[project]
+name = "atessa-tui"
+version = "0.3.0b1"
+description = "Atessa Toolbelt - portable CLI and TUI access to the atessa proxy"
+requires-python = ">=3.10"
+dependencies = [
+    "textual>=0.80",
+    "httpx>=0.27",
+    "ddgs>=9.0",
+    "trafilatura>=2.0",
+    "youtube-transcript-api>=1.0",
+    "feedparser>=6.0",
+    "mss>=10.0",
+    "yt-dlp>=2025.1",
+    "tiktoken>=0.7",
+    "litellm>=1.70",
+    "openskill>=6.0",
+    "GitPython>=3.1",
+    "commitizen>=4.0",
+]
+
+[project.scripts]
+atessa = "atessa_tui.app:main"
+atessa-activity = "atessa_tui.cli:activity_entry"
+atessa-arena = "atessa_tui.cli:arena_entry"
+atessa-bench = "atessa_tui.cli:bench_entry"
+atessa-chat = "atessa_tui.cli:chat_entry"
+atessa-council = "atessa_tui.cli:council_entry"
+atessa-explain = "atessa_tui.cli:explain_entry"
+atessa-ghsearch = "atessa_tui.cli:ghsearch_entry"
+atessa-git = "atessa_tui.cli:git_entry"
+atessa-image = "atessa_tui.cli:image_entry"
+atessa-models = "atessa_tui.cli:models_entry"
+atessa-read = "atessa_tui.cli:read_entry"
+atessa-ping = "atessa_tui.cli:ping_entry"
+atessa-search = "atessa_tui.cli:search_entry"
+atessa-shell = "atessa_tui.cli:shell_entry"
+atessa-shot = "atessa_tui.cli:shot_entry"
+atessa-transcribe = "atessa_tui.cli:transcribe_entry"
+atessa-view = "atessa_tui.cli:view_entry"
+websearch = "atessa_tui.cli:websearch_entry"
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["atessa_tui*"]
+
+[tool.setuptools.package-data]
+atessa_tui = ["*.tcss"]
+

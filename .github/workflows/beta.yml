@@ -1,0 +1,200 @@
+# GitHub Actions Workflow for Atessa Toolbelt Beta Distribution (v0.3.0b1)
+# Triggers on git tags (v*) or manual dispatch (workflow_dispatch).
+# Builds developer targets (wheel/sdist) and Windows release target (PyInstaller one-folder bundle & Inno Setup per-user installer).
+#
+# Release Metadata Details:
+# - Version: 0.3.0b1
+# - PrivilegesRequired=lowest (per-user install under {localappdata}\Programs\Atessa)
+# - Package data: atessa_tui/app.tcss included in wheel/sdist and PyInstaller bundle
+# - Executables (18 native aliases and entry modules):
+#   1. atessa -> atessa_tui.app:main
+#   2. atessa-activity -> atessa_tui.cli:activity_entry
+#   3. atessa-arena -> atessa_tui.cli:arena_entry
+#   4. atessa-bench -> atessa_tui.cli:bench_entry
+#   5. atessa-chat -> atessa_tui.cli:chat_entry
+#   6. atessa-council -> atessa_tui.cli:council_entry
+#   7. atessa-explain -> atessa_tui.cli:explain_entry
+#   8. atessa-ghsearch -> atessa_tui.cli:ghsearch_entry
+#   9. atessa-git -> atessa_tui.cli:git_entry
+#   10. atessa-image -> atessa_tui.cli:image_entry
+#   11. atessa-models -> atessa_tui.cli:models_entry
+#   12. atessa-read -> atessa_tui.cli:read_entry
+#   13. atessa-search -> atessa_tui.cli:search_entry
+#   14. atessa-shell -> atessa_tui.cli:shell_entry
+#   15. atessa-shot -> atessa_tui.cli:shot_entry
+#   16. atessa-transcribe -> atessa_tui.cli:transcribe_entry
+#   17. atessa-view -> atessa_tui.cli:view_entry
+#   18. websearch -> atessa_tui.cli:websearch_entry
+
+name: Beta Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-packages:
+    name: Build Developer Packages (Wheel & SDist)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip build
+
+      - name: Build wheel and sdist
+        run: |
+          python -m build
+
+      - name: Upload wheel and sdist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist-0.3.0b1
+          path: dist/*
+
+  build-windows-installer:
+    name: Build Windows Bundle & Installer
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools build pyinstaller
+          pip install -e .
+
+      - name: Build PyInstaller one-folder bundle (atessa.spec)
+        run: |
+          pyinstaller --noconfirm atessa.spec
+
+      - name: Build Inno Setup per-user installer (installer.iss)
+        run: |
+          iscc installer.iss
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AtessaSetup-0.3.0b1
+          path: Output/AtessaSetup-0.3.0b1.exe
+
+  build-macos-bundle:
+    name: Build macOS Console Bundle (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+          - arch: x86_64
+            runner: macos-15-intel
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools pyinstaller
+          pip install -e .
+
+      - name: Build native console bundle
+        run: pyinstaller --noconfirm --clean atessa.spec
+
+      - name: Smoke test local commands
+        run: |
+          dist/atessa/atessa-activity --json
+          dist/atessa/atessa-models routes --json
+
+      - name: Create macOS archive
+        run: tar -czf "atessa-0.3.0b1-macos-${{ matrix.arch }}.tar.gz" -C dist atessa
+
+      - name: Upload macOS bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: atessa-0.3.0b1-macos-${{ matrix.arch }}
+          path: atessa-0.3.0b1-macos-${{ matrix.arch }}.tar.gz
+
+  # Terminal bundles do not use --windowed/.app: Textual requires a real TTY.
+  # Set repository variable ATESSA_MACOS_NOTARIZATION=true only after adding the
+  # Apple Developer secrets listed below. GitHub does not permit secrets in job if expressions.
+
+  # Optional notarized path. Disabled unless the repository variable enables it.
+  notarize-macos-bundle:
+    name: Notarize macOS Console Bundle (${{ matrix.arch }})
+    if: ${{ vars.ATESSA_MACOS_NOTARIZATION == 'true' }}
+    needs: build-macos-bundle
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+          - arch: x86_64
+            runner: macos-15-intel
+    steps:
+      - name: Download unsigned bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: atessa-0.3.0b1-macos-${{ matrix.arch }}
+
+      - name: Extract bundle
+        run: tar -xzf "atessa-0.3.0b1-macos-${{ matrix.arch }}.tar.gz"
+
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD="${KEYCHAIN_PASSWORD:-$(openssl rand -hex 20)}"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain-db
+          security default-keychain -s build.keychain-db
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain-db
+          echo "$CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain-db -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain-db
+
+      - name: Sign all bundle code
+        env:
+          SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          find dist/atessa -type f \( -name '*.dylib' -o -name '*.so' \) -exec codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" {} +
+          find dist/atessa -maxdepth 1 -type f -exec codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" {} +
+          codesign --verify --deep --strict --verbose=2 dist/atessa/atessa
+
+      - name: Create notarization archive
+        run: ditto -c -k --keepParent dist/atessa "atessa-0.3.0b1-macos-${{ matrix.arch }}-signed.zip"
+
+      - name: Submit to Apple notarization
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: xcrun notarytool submit "atessa-0.3.0b1-macos-${{ matrix.arch }}-signed.zip" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+
+      - name: Upload notarized archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: atessa-0.3.0b1-macos-${{ matrix.arch }}-signed
+          path: atessa-0.3.0b1-macos-${{ matrix.arch }}-signed.zip
