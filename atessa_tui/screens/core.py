@@ -647,7 +647,7 @@ class ModelsPane(ToolPane):
         super().__init__()
         self._models: list[str] = []
         self._visible_models: list[str] = []
-
+        self._ping_results: dict[str, dict] = {}
     def compose_body(self) -> ComposeResult:
         yield Static("Loading live catalog…", id="models-status")
         yield LoadingIndicator(id="models-spinner")
@@ -691,7 +691,22 @@ class ModelsPane(ToolPane):
         folded = needle.casefold()
         self._visible_models = [model for model in self._models if folded in model.casefold()]
         if self._visible_models:
-            catalog.add_options([Option(model) for model in self._visible_models])
+            options = []
+            for model in self._visible_models:
+                p = self._ping_results.get(model)
+                if p:
+                    if p["status"] == "ONLINE":
+                        lat = f"{p['latency_ms']}ms" if p.get("latency_ms") else ""
+                        label = f"[green]✔ ONLINE {lat:6}[/green]  {model}"
+                    elif p["status"] == "TIMEOUT":
+                        label = f"[yellow]⏱ TIMEOUT    [/yellow]  {model}"
+                    else:
+                        err = p.get("error") or "DOWN"
+                        label = f"[red]✖ {err:11}[/red]  {model}"
+                else:
+                    label = f"[dim]-- PROBE UNKNOWN[/dim]  {model}"
+                options.append(Option(label, id=model))
+            catalog.add_options(options)
             catalog.highlighted = 0
         else:
             catalog.add_option(Option("(no matches)", disabled=True))
@@ -714,23 +729,31 @@ class ModelsPane(ToolPane):
         )
 
     def _model_detail(self, model: str) -> str:
-        """Credit cost first, then context and capabilities."""
+        """Health status first, then credit cost, context, and capabilities."""
+        bits = []
+        p = self._ping_results.get(model)
+        if p:
+            if p["status"] == "ONLINE":
+                bits.append(f"[green]ONLINE ({p['latency_ms']}ms)[/green]")
+            elif p["status"] == "TIMEOUT":
+                bits.append("[yellow]TIMEOUT[/yellow]")
+            else:
+                bits.append(f"[red]UNAVAILABLE ({p.get('error', 'DOWN')})[/red]")
         weight = weight_for(model)
         if weight is None:
-            bits = ["cost not imported — click Credit costs"]
+            bits.append("cost not imported")
         elif weight == 0:
-            bits = ["Free — no credits consumed"]
+            bits.append("Free")
         else:
             unit = "credit" if weight == 1 else "credits"
-            bits = [f"{weight:g} {unit} per request"]
+            bits.append(f"{weight:g} {unit}/req")
         context = self.api.model_context.get(model)
         if context:
             bits.append(f"{format_context(context)} context")
         meta = model_meta(model)
         if meta and meta["vision"]:
             bits.append("vision")
-        return f"{model} · {' · '.join(bits)}"
-
+        return f"[b]{model}[/b] · {' · '.join(bits)}"
     @on(Input.Changed, "#model-filter")
     def _filter_changed(self, event: Input.Changed) -> None:
         if self._models:
@@ -761,10 +784,14 @@ class ModelsPane(ToolPane):
     async def _ping_worker(self, models: list[str]) -> None:
         try:
             results = await self.api.ping_all_models(models)
+            for r in results:
+                self._ping_results[r["model"]] = r
             online = sum(1 for r in results if r["status"] == "ONLINE")
             unavail = sum(1 for r in results if r["status"] != "ONLINE")
+            filter_val = self.query_one("#model-filter", Input).value
+            self._populate(filter_val)
             self.query_one("#models-status", Static).update(
-                f"Health Probe Complete · [green]{online} Online[/green] · [red]{unavail} Unavailable[/red]"
+                f"Health Probe Complete · [green]{online} Online[/green] · [red]{unavail} Unavailable/Timeout[/red]"
             )
             self.notify(f"Ping complete: {online} online, {unavail} unavailable")
         except Exception as err:
