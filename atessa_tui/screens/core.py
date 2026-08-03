@@ -772,6 +772,13 @@ class ModelsPane(ToolPane):
             self._model_detail(model) if model else ""
         )
 
+    @on(OptionList.OptionSelected, "#model-catalog")
+    def _catalog_selected(self, event: OptionList.OptionSelected) -> None:
+        event.stop()
+        model = self._highlighted_model()
+        if model:
+            self.action_assign("default")
+            self.notify(f"Assigned default → {model}")
     @on(Button.Pressed, "#models-ping")
     def action_ping_health(self) -> None:
         if not self._visible_models:
