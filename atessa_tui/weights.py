@@ -203,8 +203,7 @@ def save_weights(weights: dict[str, float]) -> None:
     }
     with _WEIGHTS_LOCK:
         atomic_write_json(path, payload, indent=2)
-        refresh()
-
+    refresh()
 def weight_for(model: str) -> float | None:
     """Credits per request for a model, or None when it has not been imported."""
     return _cache().get(model)

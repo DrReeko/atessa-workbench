@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from textual.widgets import Checkbox, ContentSwitcher, Input, Select, TextArea
 
+from atessa_tui import weights
 from atessa_tui.app import AtessaApp
 from atessa_tui.screens import PANES
 from atessa_tui.screens.compare import ModelPicker
+from atessa_tui.screens.importer import WeightsImportScreen
 
 
 def value_of(widget):
@@ -17,6 +21,27 @@ def value_of(widget):
     if isinstance(widget, TextArea):
         return widget.text
     raise TypeError(type(widget))
+async def test_pasted_cost_import_completes(tmp_path: Path) -> None:
+    with patch.dict(os.environ, {"ATESSA_HOME": str(tmp_path)}, clear=False):
+        weights.refresh()
+        app = AtessaApp()
+        async with app.run_test(size=(150, 46)) as pilot:
+            app.push_screen(
+                WeightsImportScreen(
+                    api=None,
+                    catalog=["gpt-4", "free-model-1"],
+                    api_context={"gpt-4": 1_000_000, "free-model-1": 400_000},
+                )
+            )
+            await pilot.pause()
+            app.screen.query_one("#import-paste", TextArea).text = (
+                "gpt-4 ×2× 1M\nfree-model-1 Free 400K"
+            )
+            await pilot.click("#import-go")
+            await pilot.pause()
+            assert weights.load_weights() == {"free-model-1": 0.0, "gpt-4": 2.0}
+
+
 
 
 async def test_desktop_interaction(tmp_path: Path) -> None:
@@ -91,10 +116,12 @@ async def test_responsive_layout(tmp_path: Path) -> None:
             assert shot.exists() and shot.stat().st_size > 5000
 
 
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         asyncio.run(test_desktop_interaction(Path(tmp)))
         asyncio.run(test_responsive_layout(Path(tmp)))
+        asyncio.run(test_pasted_cost_import_completes(Path(tmp)))
     print("ALL TUI TESTS OK")
 
 

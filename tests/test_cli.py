@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import httpx
 
-from atessa_tui import cli, sources
+from atessa_tui import cli, sources, weights
 
 
 def invoke(entry, args: list[str], env_extra: dict[str, str] | None = None) -> tuple[str, str]:
@@ -227,7 +227,15 @@ def test_ping_entry_outputs_table() -> None:
             assert "ONLINE" in output
             assert "UNAVAILABLE" in output
             assert "glm-4" in output
+def test_weights_save_completes_and_persists() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        with patch.dict(os.environ, {"ATESSA_HOME": tmp}, clear=False):
+            weights.refresh()
+            weights.save_weights({"gpt-4": 2.5, "free-model-1": 0.0})
+            assert weights.load_weights() == {"free-model-1": 0.0, "gpt-4": 2.5}
+            weights.refresh()
 def main() -> None:
+    test_weights_save_completes_and_persists()
     test_github_query_expansion_is_bounded_and_lexical()
     test_github_rate_error_includes_budget()
     test_github_search_deduplicates_and_reports_rate_limit()
