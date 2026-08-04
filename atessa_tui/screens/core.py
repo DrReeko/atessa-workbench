@@ -22,6 +22,8 @@ from textual.widgets import (
     OptionList,
     Select,
     Static,
+    TabbedContent,
+    TabPane,
 )
 from textual.widgets.option_list import Option
 
@@ -594,34 +596,29 @@ class ReadPane(ToolPane):
 
 
 class ModelsPane(ToolPane):
-    """Live model catalog with persistent keyboard and mouse role assignment."""
+    """Live model catalog, health probing, and role routing organized into 3 clean tabs."""
 
     META = ToolMeta(
         key="models",
         title="Models",
-        purpose="Pick the model behind every tool once; every pane follows the route.",
+        purpose="Explore catalog costs, run live health probes, and assign tool role routes.",
         request_estimate="0",
         group="Core",
         action="Reload catalog",
-        input_label="Catalog filter",
+        input_label="Filter catalog",
         output_label="Role routes",
         examples=(
-            ("GPT family", "gpt"),
+            ("GPT models", "gpt"),
+            ("Claude models", "claude"),
             ("Fast models", "flash"),
-            ("Image-capable", "image"),
         ),
-        avoid="temporary per-request model selection; assignments change persistent routing",
+        avoid="confusing combined views; use the 3 dedicated tabs for catalog, health, and routes",
     )
     EXAMPLE_SELECTOR = "#model-filter"
-    RESULT_SELECTOR = "#models-table"
+    RESULT_SELECTOR = "#models-catalog-table"
     BINDINGS = [
-        Binding("d", "assign('default')", "→ default"),
-        Binding("v", "assign('vision')", "→ vision"),
-        Binding("o", "assign('ocr')", "→ ocr"),
-        Binding("p", "assign('power')", "→ power"),
-        Binding("i", "assign('image')", "→ image"),
-        Binding("k", "ping_health", "Ping Health"),
         Binding("r", "reload", "Reload"),
+        Binding("k", "ping_health", "Probe Health"),
     ]
 
     DEFAULT_CSS = """
@@ -630,17 +627,16 @@ class ModelsPane(ToolPane):
     ModelsPane #models-status { height: 1; padding: 0 1; }
     ModelsPane #models-spinner { height: 1; display: none; }
     ModelsPane #models-spinner.busy { display: block; }
-    ModelsPane #models-layout { height: 1fr; margin: 0 1; }
-    ModelsPane #models-catalog-pane { width: 1fr; margin-right: 1; }
+    ModelsPane TabbedContent { height: 1fr; margin: 0 1; }
+    ModelsPane TabPane { padding: 1; }
     ModelsPane #model-filter-row { height: 3; }
     ModelsPane #model-filter { width: 1fr; }
-    ModelsPane #models-reload { width: 10; margin-left: 1; }
-    ModelsPane #model-catalog { height: 1fr; border: solid $primary; }
-    ModelsPane #models-routes-pane { width: 2fr; max-width: 58; }
-    ModelsPane #models-routes-title, ModelsPane #models-keys { height: 2; padding: 0 1; }
-    ModelsPane #models-table { height: 10; }
-    ModelsPane #models-assignments { height: 3; }
-    ModelsPane #models-assignments Button { width: 1fr; margin-right: 1; }
+    ModelsPane #models-catalog-table { height: 1fr; border: solid $primary; }
+    ModelsPane #models-ping-table { height: 1fr; border: solid $primary; }
+    ModelsPane #models-routes-table { height: 1fr; border: solid $primary; }
+    ModelsPane .ping-bar { height: 3; }
+    ModelsPane .route-assign-row { height: 3; margin-top: 1; }
+    ModelsPane .route-assign-row Button { width: 1fr; margin-right: 1; }
     """
 
     def __init__(self) -> None:
@@ -651,154 +647,114 @@ class ModelsPane(ToolPane):
     def compose_body(self) -> ComposeResult:
         yield Static("Loading live catalog…", id="models-status")
         yield LoadingIndicator(id="models-spinner")
-        yield Static("", id="models-detail")
-        with Horizontal(id="models-layout"):
-            with Vertical(id="models-catalog-pane"):
-                yield Label("LIVE CATALOG · type to filter", classes="models-band")
+        with TabbedContent(initial="tab-catalog"):
+            with TabPane("1. Catalog & Costs", id="tab-catalog"):
                 with Horizontal(id="model-filter-row"):
-                    yield Input(placeholder="Filter model IDs…", id="model-filter")
-                    yield Button("Ping", id="models-ping")
-                    yield Button("Reload", id="models-reload")
+                    yield Input(placeholder="Type to filter model names (e.g. gpt, kimi, flash)…", id="model-filter")
                     yield Button("Credit costs", id="models-import")
-                yield OptionList(Option("loading catalog…", disabled=True), id="model-catalog")
-                yield Static("[b]CURRENT RUNTIME ROUTES[/b]", id="models-routes-title")
-                yield DataTable(id="models-table", cursor_type="none")
-                yield Static(
-                    "Highlight a catalog model, then click a role or press d / v / p / i.",
-                    id="models-keys",
-                )
-                with Horizontal(id="models-assignments"):
-                    for role in ("default", "vision", "ocr", "power", "image"):
-                        yield Button(
-                            f"{ASSIGNMENT_KEYS[role]}  → {role}", id=f"models-assign-{role}"
-                        )
+                    yield Button("Reload", id="models-reload")
+                yield DataTable(id="models-catalog-table", cursor_type="row")
 
+            with TabPane("2. Health & Uptime Probe", id="tab-ping"):
+                with Horizontal(classes="ping-bar"):
+                    yield Button("▶ Run Live Health Check Across All Models", id="models-ping", variant="primary")
+                yield DataTable(id="models-ping-table", cursor_type="row")
+
+            with TabPane("3. Role Routes Configuration", id="tab-routes"):
+                yield Static("These 5 routes dictate which model powers each tool across the toolbelt:", classes="core-flow")
+                yield DataTable(id="models-routes-table", cursor_type="row")
+                yield Static("Select a row above, then click a button below to change that role's assigned model:", classes="core-flow")
+                with Horizontal(classes="route-assign-row"):
+                    for role in ("default", "vision", "ocr", "power", "image"):
+                        yield Button(f"Set → {role.upper()}", id=f"models-assign-{role}")
     def on_mount(self) -> None:
-        table = self.query_one("#models-table", DataTable)
-        table.add_columns("ROUTE", "PERSISTED MODEL")
+        cat_table = self.query_one("#models-catalog-table", DataTable)
+        cat_table.add_columns("MODEL NAME", "CREDIT COST", "CONTEXT SIZE", "CAPABILITIES")
+
+        ping_table = self.query_one("#models-ping-table", DataTable)
+        ping_table.add_columns("STATUS", "MODEL ID", "LATENCY", "DIAGNOSTIC NOTES")
+
+        route_table = self.query_one("#models-routes-table", DataTable)
+        route_table.add_columns("TOOL ROLE", "CONFIGURED MODEL", "PURPOSE")
+
         self._refresh_routes()
         self.run_primary()
 
     def _refresh_routes(self) -> None:
-        table = self.query_one("#models-table", DataTable)
+        table = self.query_one("#models-routes-table", DataTable)
         table.clear()
+        purposes = {
+            "default": "Primary fallback chat & fast search model",
+            "vision": "Screenshot & image analysis model",
+            "ocr": "Text extraction model",
+            "power": "Complex coding & architecture review model",
+            "image": "PNG image generation model",
+        }
         for role in ROLE_KEYS:
-            table.add_row(role, self.model_for(role))
+            table.add_row(role.upper(), self.model_for(role), purposes.get(role, ""))
 
     def _populate(self, needle: str = "") -> None:
-        catalog = self.query_one("#model-catalog", OptionList)
-        catalog.clear_options()
+        table = self.query_one("#models-catalog-table", DataTable)
+        table.clear()
         folded = needle.casefold()
-        self._visible_models = [model for model in self._models if folded in model.casefold()]
-        if self._visible_models:
-            options = []
-            for model in self._visible_models:
-                p = self._ping_results.get(model)
-                if p:
-                    if p["status"] == "ONLINE":
-                        lat = f"{p['latency_ms']}ms" if p.get("latency_ms") else ""
-                        label = f"[green]✔ ONLINE {lat:6}[/green]  {model}"
-                    elif p["status"] == "TIMEOUT":
-                        label = f"[yellow]⏱ TIMEOUT    [/yellow]  {model}"
-                    else:
-                        err = p.get("error") or "DOWN"
-                        label = f"[red]✖ {err:11}[/red]  {model}"
-                else:
-                    label = f"[dim]-- PROBE UNKNOWN[/dim]  {model}"
-                options.append(Option(label, id=model))
-            catalog.add_options(options)
-            catalog.highlighted = 0
-        else:
-            catalog.add_option(Option("(no matches)", disabled=True))
-        costed = sum(1 for model in self._visible_models if weight_for(model) is not None)
+        self._visible_models = [m for m in self._models if folded in m.casefold()]
+        for model in self._visible_models:
+            weight = weight_for(model)
+            cost_str = "Free" if weight == 0 else (f"{weight:g} credits/req" if weight is not None else "cost not imported")
+            ctx = format_context(self.api.model_context.get(model)) if self.api.model_context.get(model) else "-"
+            meta = model_meta(model)
+            caps = "Vision" if (meta and meta["vision"]) else "Text"
+            table.add_row(model, cost_str, ctx, caps)
+
+        costed = sum(1 for m in self._visible_models if weight_for(m) is not None)
         age = import_age_days()
-        if not costed:
-            detail = " · ⚠ no credit costs imported"
-        elif costed < len(self._visible_models):
-            detail = f" · ⚠ {costed}/{len(self._visible_models)} with credit costs"
-        elif age is None:
-            detail = " · ⚠ costs imported, date unknown"
-        elif age >= 14:
-            detail = f" · ⚠ costs are {age} days old — re-import"
-        elif age == 0:
-            detail = " · credit costs updated today"
-        else:
-            detail = f" · credit costs updated {age} day{'s' if age != 1 else ''} ago"
+        detail = f" · {costed}/{len(self._visible_models)} costs loaded" if costed else " · no credit costs loaded"
         self.query_one("#models-status", Static).update(
             f"Catalog · {len(self._visible_models)} shown / {len(self._models)} total{detail}"
         )
-
-    def _model_detail(self, model: str) -> str:
-        """Health status first, then credit cost, context, and capabilities."""
-        bits = []
-        p = self._ping_results.get(model)
-        if p:
-            if p["status"] == "ONLINE":
-                bits.append(f"[green]ONLINE ({p['latency_ms']}ms)[/green]")
-            elif p["status"] == "TIMEOUT":
-                bits.append("[yellow]TIMEOUT[/yellow]")
-            else:
-                bits.append(f"[red]UNAVAILABLE ({p.get('error', 'DOWN')})[/red]")
-        weight = weight_for(model)
-        if weight is None:
-            bits.append("cost not imported")
-        elif weight == 0:
-            bits.append("Free")
-        else:
-            unit = "credit" if weight == 1 else "credits"
-            bits.append(f"{weight:g} {unit}/req")
-        context = self.api.model_context.get(model)
-        if context:
-            bits.append(f"{format_context(context)} context")
-        meta = model_meta(model)
-        if meta and meta["vision"]:
-            bits.append("vision")
-        return f"[b]{model}[/b] · {' · '.join(bits)}"
     @on(Input.Changed, "#model-filter")
     def _filter_changed(self, event: Input.Changed) -> None:
         if self._models:
             self._populate(event.value)
-
-    @on(Input.Submitted, "#model-filter")
-    def _filter_submitted(self, event: Input.Submitted) -> None:
-        event.stop()
-        self.query_one("#model-catalog", OptionList).focus()
-
-    @on(OptionList.OptionHighlighted, "#model-catalog")
-    def _catalog_highlighted(self, event: OptionList.OptionHighlighted) -> None:
-        event.stop()
-        model = self._highlighted_model()
-        self.query_one("#models-detail", Static).update(
-            self._model_detail(model) if model else ""
-        )
-
-    @on(OptionList.OptionSelected, "#model-catalog")
-    def _catalog_selected(self, event: OptionList.OptionSelected) -> None:
-        event.stop()
-        model = self._highlighted_model()
-        if model:
-            self.action_assign("default")
-            self.notify(f"Assigned default → {model}")
     @on(Button.Pressed, "#models-ping")
     def action_ping_health(self) -> None:
         if not self._visible_models:
             self.notify("No visible models to ping", severity="warning")
             return
-        status = self.query_one("#models-status", Static)
-        status.update(f"Pinging {len(self._visible_models)} models…")
+        table = self.query_one("#models-ping-table", DataTable)
+        table.clear()
+        table.add_row("PROBING…", "Pinging models in parallel…", "-", "-")
+        self.notify("Starting live health probe…")
         self.run_worker(self._ping_worker(list(self._visible_models)), thread=False)
 
     async def _ping_worker(self, models: list[str]) -> None:
         try:
             results = await self.api.ping_all_models(models)
+            table = self.query_one("#models-ping-table", DataTable)
+            table.clear()
+            online = 0
+            unavail = 0
             for r in results:
                 self._ping_results[r["model"]] = r
-            online = sum(1 for r in results if r["status"] == "ONLINE")
-            unavail = sum(1 for r in results if r["status"] != "ONLINE")
-            filter_val = self.query_one("#model-filter", Input).value
-            self._populate(filter_val)
+                if r["status"] == "ONLINE":
+                    online += 1
+                    status_str = f"[green]ONLINE[/green]"
+                    lat_str = f"{r['latency_ms']}ms"
+                    notes = "OK"
+                elif r["status"] == "TIMEOUT":
+                    unavail += 1
+                    status_str = "[yellow]TIMEOUT[/yellow]"
+                    lat_str = f"{r['latency_ms']}ms"
+                    notes = f"> 3.5s"
+                else:
+                    unavail += 1
+                    status_str = "[red]UNAVAILABLE[/red]"
+                    lat_str = f"{r['latency_ms']}ms" if r.get('latency_ms') else "-"
+                    notes = r.get("error") or "HTTP Error"
+                table.add_row(status_str, r["model"], lat_str, notes)
+
             self.query_one("#models-status", Static).update(
-                f"Health Probe Complete · [green]{online} Online[/green] · [red]{unavail} Unavailable/Timeout[/red]"
+                f"Health Probe Complete · [green]{online} Online[/green] · [red]{unavail} Unavailable[/red]"
             )
             self.notify(f"Ping complete: {online} online, {unavail} unavailable")
         except Exception as err:
@@ -822,12 +778,25 @@ class ModelsPane(ToolPane):
             ),
         )
 
-    @on(Button.Pressed, "#models-assignments Button")
+    @on(Button.Pressed, ".route-assign-row Button")
     def _assignment_pressed(self, event: Button.Pressed) -> None:
         event.stop()
         role = event.button.id.removeprefix("models-assign-")
-        self.action_assign(role)
+        cat_table = self.query_one("#models-catalog-table", DataTable)
+        if cat_table.cursor_row is not None and cat_table.cursor_row < len(self._visible_models):
+            model = self._visible_models[cat_table.cursor_row]
+            self.action_assign_explicit(role, model)
+        else:
+            self.notify("Click/select a model row in Tab 1 (Catalog) first", severity="warning")
 
+    def action_assign_explicit(self, role: str, model: str) -> None:
+        try:
+            self.cfg.set_model(role, model)
+            self._refresh_routes()
+            self.notify(f"Assigned {role.upper()} → {model}")
+            self.app.record_activity("models", "ok", f"assigned {role}", model)
+        except Exception as exc:
+            self.notify(f"Assignment failed: {exc}", severity="error")
     def _highlighted_model(self) -> str | None:
         highlighted = self.query_one("#model-catalog", OptionList).highlighted
         if highlighted is None or highlighted >= len(self._visible_models):
@@ -862,18 +831,13 @@ class ModelsPane(ToolPane):
     async def _load_models(self) -> None:
         spinner = self.query_one("#models-spinner", LoadingIndicator)
         status = self.query_one("#models-status", Static)
-        catalog = self.query_one("#model-catalog", OptionList)
         spinner.add_class("busy")
         status.update("Loading live catalog…")
-        catalog.clear_options()
-        catalog.add_option(Option("loading catalog…", disabled=True))
         try:
             try:
                 models = await self.api.models()
             except (ApiError, httpx.HTTPError) as exc:
                 status.update(f"Catalog failed · {escape(str(exc))}")
-                catalog.clear_options()
-                catalog.add_option(Option("catalog unavailable", disabled=True))
                 self.notify(f"models: {exc}", severity="error")
                 self.app.record_activity("models", "error", str(exc))
                 return

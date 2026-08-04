@@ -122,7 +122,10 @@ class ModelPicker(VerticalScroll):
         self._models = tuple(models)
         self._selected = set(selected).intersection(models)
         self._by_choice_id = {}
-        grid = self.query_one(".model-picker-grid", ItemGrid)
+        try:
+            grid = self.query_one(".model-picker-grid", ItemGrid)
+        except Exception:
+            return
         await grid.remove_children()
         if not models:
             await grid.mount(Static("No models available.", classes="model-picker-empty"))
