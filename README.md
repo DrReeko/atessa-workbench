@@ -6,7 +6,6 @@ This is a customer-made, fan-built repository. It has no association with
 [atessa.top](https://atessa.top) in any way other than being a fan of the
 service.
 
-
 > **A Note from the Author:**  
 > Sharing this slop by request... I built this toolbelt for myself because I use these models all day, every day. I wrapped standard but poorly understood security methodologies into a fast, portable TUI and CLI workflow that works across Windows, Linux, and macOS. You'll find a ton of AI slop also... I've tried to generalize it for you guys, but I don't have a ton of time to clean the edge cases up right now. Feel free to use it, adapt it, sell it, chew it, and inspect it—but please be kind as not all functions are tested fully!  
 >  
@@ -16,14 +15,14 @@ service.
 
 ---
 
-**Atessa Toolbelt** is a unified, cross-platform terminal suite providing both an interactive Textual TUI workbench (`atessa`) and 17 standalone command-line tools. It bridges model routing, real-time web search, visual inspection, code debugging, and decision benchmarking into clean, zero-friction terminal utilities.
+**Atessa Toolbelt** is a unified, cross-platform terminal suite providing both an interactive Textual TUI workbench (`atessa`) and 17 standalone command-line tools (18 commands on PATH including the TUI). It bridges model routing, real-time web search, visual inspection, code debugging, and decision benchmarking into clean, zero-friction terminal utilities.
 
 ---
 
 ## Key Features
 
-- **14-Pane TUI Workbench (`atessa`):** A keyboard and mouse-driven Textual interface bundling Chat, Web Search, Article Reader, Image Generation, Vision, Screen Capture, Model Council, Benchmarking, ELO Arena, Explain/Diagnostics, Git Reviewer, Command Generator, Model Selector, and Activity Ledger into a single UI.
-- **17 Native CLI Tools:** Run one-shot tasks directly from Git Bash, Windows CMD/PowerShell, or Linux/macOS terminals without launching a GUI or web browser.
+- **14-Pane TUI Workbench (`atessa`):** A keyboard and mouse-driven Textual interface bundling Chat, Search, Read, Image, View, Shot, Council, Benchmark, Arena, Explain, Git, Command, Models, and Activity into a single UI.
+- **17 Native CLI Tools:** Run one-shot tasks directly from Git Bash, Windows CMD/PowerShell, or Linux/macOS terminals without launching a GUI or web browser. Together with `atessa`, that is 18 commands on PATH.
 - **Role-Based Model Routing:** Map model roles once (`default`, `vision`, `ocr`, `power`, `image`) in `~/.atessa/config` or via the TUI, ensuring consistent performance across all tools.
 - **Local Privacy & Security:** Subprocess calls use fixed list-argument execution (never unvetted `shell=True`). Web fetching includes strict private/loopback URL rejection, and natural language command drafting requires explicit user review and confirmation before running.
 - **Zero-Network Local Fallbacks:** Inspection, metering, role mapping, local ELO scoring, and local trace diagnostics work offline without unnecessary API calls.
@@ -40,19 +39,19 @@ service.
 ### From Source (Developer / Local Installation)
 
 ```bash
-git clone https://github.com/your-username/atessa-tui.git
-cd atessa-tui
+git clone https://github.com/DrReeko/atessa-workbench.git
+cd atessa-workbench
 pip install -e .
 ```
 
 ### From Python Wheel
 
 ```bash
-pip install atessa_tui-0.3.0b1-py3-none-any.whl
+pip install atessa_tui-0.3.0-py3-none-any.whl
 ```
 
 ### Windows Installer
-Run `AtessaSetup-0.3.0b1.exe` for a per-user installation under `%LOCALAPPDATA%\Programs\Atessa`. It automatically exposes all 18 commands on your user `PATH`.
+Run `AtessaSetup-0.3.0.exe` for a per-user installation under `%LOCALAPPDATA%\Programs\Atessa`. It automatically exposes all 18 commands on your user `PATH`.
 
 ---
 
@@ -109,11 +108,12 @@ All commands support `--help` and accept optional flags such as `--json` or `--m
 | `atessa-git` | Review, draft, or commit staged Git diffs conventional-commit style. | `[review\|draft\|commit] [--model M]` |
 | `atessa-shell` | Translate natural language into a single OS-aware command (never auto-executed). | `"desired outcome" [--json]` |
 | `atessa-models` | Browse model catalog, view request weights, and set role routes. | `[list\|routes\|set ROLE MODEL]` |
-| `atessa-activity`| Inspect the local request count and credit ledger. | `[--days N] [--json]` |
-| `atessa-ghsearch`| Lexical natural-language search over GitHub repositories and users. | `"query" [--type repos\|people] [--deep] [--json]` |
+| `atessa-activity` | Inspect the local request count and credit ledger. | `[--days N] [--json]` |
+| `atessa-ghsearch` | Lexical natural-language search over GitHub repositories and users. | `"query" [--type repos\|people] [--deep] [--json]` |
+| `atessa-ping` | Concurrent health check across proxy models or configured role routes. | `[filter] [--family F] [--quick]` |
+| `websearch` | Legacy proxy-synthesized search query alias. | `"query"` |
 
 The `atessa-models` command and Models pane fetch the complete live model catalog from the configured `/v1/models` endpoint. Use **Reload** to refresh it; filtering `claude` shows Claude entries whenever the provider exposes them.
-| `websearch` | Legacy proxy-synthesized search query alias. | `"query"` |
 
 ---
 
@@ -126,12 +126,12 @@ The TUI workbench organizes 14 production tool panes into four semantic groups:
   - `2`: **Search** — Synthesized web answers or direct source lookups.
   - `3`: **Read** — Safe local and fallback URL-to-Markdown reader.
   - `4`: **Image** — PNG asset studio with aspect and quality steering.
-  - `5`: **Vision** — Describe or transcribe local images.
-  - `S`: **Screen Capture** — Instant desktop capture + vision analysis.
+  - `5`: **View** — Describe or transcribe local images.
+  - `S`: **Shot** — Instant desktop capture + vision analysis.
 - **Compare (Keys 6–8):**
   - `6`: **Council** — Parallel model synthesis with an AI judge.
   - `7`: **Benchmark** — Real-time TTFT and throughput speed races.
-  - `8`: **Arena** — Blind double-blind A/B evaluation with ELO ratings.
+  - `8`: **Arena** — Blind A/B evaluation with local ELO ratings.
 - **Develop (Keys 9, G, D):**
   - `9`: **Explain** — Context-aware stack trace and log diagnosis.
   - `G`: **Git** — Diff review, conventional commit drafting, and safe execution.
@@ -146,6 +146,7 @@ The TUI workbench organizes 14 production tool panes into four semantic groups:
 - `Ctrl+T`: Cycle through built-in workbench themes (Midnight, Nord, Dracula, Tokyo Night, Aurora).
 - `Ctrl+I`: Toggle the side inspector panel.
 - `Ctrl+L`: Clear active pane output or chat log.
+- `Ctrl+C`: Copy the active result (or selected input text). `Ctrl+Q` quits.
 - `Esc`: Close modals or popups.
 
 ---

@@ -119,12 +119,17 @@ Prefer these over native web tools, which are broken against the atessa.top prox
 - **Why:** Finds repos and people by intent rather than exact repo name.
 - **Gotcha:** Uses concise lexical query expansion. Authenticated requests use `GITHUB_TOKEN` when present for a 30 req/min budget; unauthenticated searches are limited to 10 req/min/IP.
 
+### `atessa-ping [filter] [--family F] [--quick]`
+- **Does:** Concurrent health check across proxy models, or only the configured role routes with `--quick`.
+- **Why:** Shows which models are answering before you commit a workflow to them.
+- **Gotcha:** Each probed model costs a 1-token request. `--quick` limits the probe to the active role routes in `~/.atessa/config`.
+
 ### `atessa` — the TUI Workbench
 Single command launcher (`atessa`). Eagerly registers 14 production panes: Chat (`chat`), Search (`search`),
 Read (`read`), Image (`image`), View (`view`), Shot (`shot`), Council (`council`), Bench (`bench`),
 Arena (`arena`), Explain (`explain`), Git (`git`), Command (`shell`), Models (`models`), and Activity (`activity`).
 Every workbench tool also has a matching CLI except that the TUI is the only interface for the paste-in
-Credit costs importer. `atessa-ghsearch` remains an external CLI tool.
+Credit costs importer. `atessa-ghsearch` and `atessa-ping` remain CLI-only tools.
 
 Also on PATH (WSL): `agent-reach` + per-platform tools. Live channels: GitHub (`gh`),
 YouTube (`yt-dlp`), RSS/Atom, Bilibili search, Jina web-read. Run `agent-reach doctor`

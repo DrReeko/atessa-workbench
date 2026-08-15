@@ -8,7 +8,7 @@ Atessa Toolbelt is committed to maintaining user privacy, local data safety, and
 
 | Version | Supported |
 | :--- | :--- |
-| `0.3.x` (Beta) | :white_check_mark: |
+| `0.3.x` | :white_check_mark: |
 | `< 0.3.0` | :x: |
 
 ---
