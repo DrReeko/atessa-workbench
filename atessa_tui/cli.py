@@ -51,10 +51,9 @@ from .screens.dev import (
 )
 from .screens.media import ASPECT_SUFFIX, VIEW_DEFAULT_PROMPT, _capture_cmds, _capture_missing_message
 
-
 DEFAULT_CHAT_MODEL = "claude-sonnet-4.6"
 DEFAULT_POWER_MODEL = "kimi-k2.7-code"
-DEFAULT_IMAGE_MODEL = "gpt-5.5"
+DEFAULT_IMAGE_MODEL = "gpt-5.6-luna"
 DEFAULT_VISION_MODEL = "claude-sonnet-4.6"
 DEFAULT_FAST_MODEL = "ling-3.0-flash"
 GITHUB_API = "https://api.github.com"
@@ -536,7 +535,6 @@ def image_main() -> None:
     record_call("image", args.model)
     print(f"{output} ({len(image)} bytes)")
 
-
 def view_main() -> None:
     parser = _parser("atessa-view", "Describe or OCR a local image.")
     parser.add_argument("image")
@@ -748,37 +746,6 @@ def arena_main() -> None:
     print("Winner: Model A" if vote == "a" else "Winner: Model B" if vote == "b" else "Result: Tie")
 
 
-def transcribe_main() -> None:
-    parser = _parser("atessa-transcribe", "Transcribe audio when the proxy offers a mapped backend.")
-    parser.add_argument("audiofile")
-    parser.add_argument("--model", default="whisper-1")
-    parser.add_argument("--json", "--raw", action="store_true", dest="raw")
-    args = parser.parse_args()
-    path = Path(args.audiofile)
-    if not path.is_file():
-        _print_error("atessa-transcribe", f"file not found: {path}")
-
-    async def action(api: AtessaAPI):
-        try:
-            with path.open("rb") as audio:
-                response = await api._client.post("/audio/transcriptions", files={"file": (path.name, audio)}, data={"model": args.model})
-            text = response.text
-            if response.status_code >= 400 or "No provider mapping" in text:
-                raise CliError("not available on this proxy; use Agent-Reach for audio transcription instead.")
-            data = response.json()
-            return data if args.raw else str(data.get("text") or "")
-        except httpx.HTTPError as error:
-            raise CliError(f"network error: {error}") from error
-
-    result = _run(_with_api(Config(), action))
-    if args.raw:
-        print(json.dumps(result, indent=2))
-    elif result:
-        print(result)
-    else:
-        _print_error("atessa-transcribe", "empty output")
-
-
 def _github_headers() -> dict[str, str]:
     headers = {"Accept": "application/vnd.github+json", "User-Agent": GITHUB_USER_AGENT}
     if token := os.environ.get("GITHUB_TOKEN"):
@@ -926,7 +893,7 @@ COMMANDS: dict[str, Callable[[], None]] = {
     "chat": chat_main, "council": council_main, "explain": explain_main,
     "ghsearch": ghsearch_main, "git": git_main, "image": image_main,
     "models": models_main, "ping": ping_main, "read": read_main, "search": search_main,
-    "shell": shell_main, "shot": shot_main, "transcribe": transcribe_main, "view": view_main,
+    "shell": shell_main, "shot": shot_main, "view": view_main,
     "websearch": websearch_main,
 }
 
@@ -952,7 +919,6 @@ def read_entry() -> None: _named_main("read")
 def search_entry() -> None: _named_main("search")
 def shell_entry() -> None: _named_main("shell")
 def shot_entry() -> None: _named_main("shot")
-def transcribe_entry() -> None: _named_main("transcribe")
 def view_entry() -> None: _named_main("view")
 def websearch_entry() -> None: _named_main("websearch")
 def ping_entry() -> None: _named_main("ping")

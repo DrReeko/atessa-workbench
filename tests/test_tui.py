@@ -6,12 +6,12 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from textual.widgets import Checkbox, ContentSwitcher, Input, Select, TextArea
+from textual.widgets import ContentSwitcher, Input, OptionList, Select, TextArea
 
 from atessa_tui import weights
 from atessa_tui.app import AtessaApp
 from atessa_tui.screens import PANES
-from atessa_tui.screens.compare import ModelPicker
+from atessa_tui.screens.compare import ModelPickerScreen
 from atessa_tui.screens.importer import WeightsImportScreen
 
 
@@ -93,12 +93,42 @@ async def test_desktop_interaction(tmp_path: Path) -> None:
             label = select.query_one("#label")
             assert str(label.render()).strip(), selector
 
-        picker = app.query_one("#council-models", ModelPicker)
-        await picker.set_models(["alpha", "bravo", "charlie"], ["bravo"])
-        assert picker.selected == ("bravo",)
-        picker.query_one("#model-choice-0", Checkbox).toggle()
+        app.show_tool("council")
         await pilot.pause()
-        assert picker.selected == ("alpha", "bravo")
+        pane = app.query_one("#pane-council")
+        pane._models = ["alpha", "bravo", "charlie"]
+        pane._set_selected(["bravo"])
+        assert pane._selected == ["bravo"]
+        await pilot.click("#council-choose")
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, ModelPickerScreen)
+        listing = screen.query_one("#picker-list", OptionList)
+        assert listing.option_count == 3
+        rows = [str(listing.get_option_at_index(i).prompt) for i in range(3)]
+        assert any("☑" in row and "bravo" in row for row in rows)
+        listing.focus()
+        await pilot.press("space")
+        assert pane._selected == ["bravo"]
+        await pilot.click("#picker-done")
+        await pilot.pause()
+        assert pane._selected == ["alpha", "bravo"]
+        await pilot.click("#council-choose-judge")
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, ModelPickerScreen)
+        listing = screen.query_one("#picker-list", OptionList)
+        assert listing.option_count == 3
+        listing.focus()
+        await pilot.press("space")  # pick alpha
+        await pilot.press("down")
+        await pilot.press("space")  # pick bravo — single-select replaces
+        await pilot.pause()
+        assert screen._selected == {"bravo"}
+        await pilot.click("#picker-done")
+        await pilot.pause()
+        assert pane._judge == "bravo"
+        assert "Judge: bravo" in str(pane.query_one("#council-judge").content)
 
 
 async def test_responsive_layout(tmp_path: Path) -> None:
@@ -117,11 +147,68 @@ async def test_responsive_layout(tmp_path: Path) -> None:
 
 
 
+async def test_theme_cycle_switches_palette(tmp_path: Path) -> None:
+    from atessa_tui import themes as theme_palette
+    from textual.widgets import Select
+
+    app = AtessaApp()
+    async with app.run_test(size=(150, 46)) as pilot:
+        await pilot.pause()
+        selector = app.query_one("#theme-select", Select)
+        assert app.theme == theme_palette.PALETTE_ORDER[0]
+        assert selector.value == theme_palette.PALETTE_ORDER[0]
+        canvas_start = app.query_one("#workspace").styles.background
+        selector.focus()
+        await pilot.press("down")
+        await pilot.pause()
+        assert app.theme == theme_palette.PALETTE_ORDER[1]
+        assert selector.value == theme_palette.PALETTE_ORDER[1]
+        assert app.query_one("#workspace").styles.background != canvas_start
+
+        await pilot.press("up")
+        await pilot.pause()
+        assert app.theme == theme_palette.PALETTE_ORDER[0]
+
+        app.action_cycle_theme()
+        await pilot.pause()
+        assert app.theme == theme_palette.PALETTE_ORDER[1]
+
+        for _ in range(len(theme_palette.PALETTE_ORDER) - 1):
+            app.action_cycle_theme()
+            await pilot.pause()
+        assert app.theme == theme_palette.PALETTE_ORDER[0]
+
+async def test_models_catalog_renders_live_claude_ids(tmp_path: Path) -> None:
+    app = AtessaApp()
+    async with app.run_test(size=(150, 46)) as pilot:
+        await pilot.pause()
+        app.show_tool("models")
+        await pilot.pause()
+        pane = app.query_one("#pane-models")
+        pane._models = ["claude-sonnet-4.6", "claude-opus-4.6", "gpt-5.6-luna"]
+        pane.api.model_context = {model: 100_000 for model in pane._models}
+        pane._populate("claude")
+        assert pane._visible_models == ["claude-sonnet-4.6", "claude-opus-4.6"]
+
+
+async def test_ctrl_c_copies_with_quit_hint(tmp_path: Path) -> None:
+    app = AtessaApp()
+    async with app.run_test(size=(150, 46)) as pilot:
+        app.show_tool("shell")
+        await pilot.pause()
+        pane = app.query_one("#pane-shell")
+        pane._set_command("echo hello")
+        await pilot.press("ctrl+c")
+        await pilot.pause()
+        assert app._notifications
+        assert "Text copied. To quit, type CTRL-Q" in list(app._notifications)[-1].message
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         asyncio.run(test_desktop_interaction(Path(tmp)))
         asyncio.run(test_responsive_layout(Path(tmp)))
         asyncio.run(test_pasted_cost_import_completes(Path(tmp)))
+        asyncio.run(test_models_catalog_renders_live_claude_ids(Path(tmp)))
+        asyncio.run(test_ctrl_c_copies_with_quit_hint(Path(tmp)))
     print("ALL TUI TESTS OK")
 
 

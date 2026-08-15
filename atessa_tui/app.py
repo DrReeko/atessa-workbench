@@ -17,13 +17,18 @@ from textual.widgets import (
     ListItem,
     ListView,
     Markdown,
+    Select,
     Static,
+    TextArea,
 )
+
+from textual.theme import Theme
 
 from .api import AtessaAPI
 from .config import Config, ROLE_KEYS
 from .spend import record_call, today_totals
 from .screens import NAV_GROUPS, PANE_BY_KEY, PANES, TOOL_GLYPHS
+from . import themes as theme_palette
 from .screens.base import CapabilityStrip, GuideModal, ToolMeta, ToolPane
 from .screens.unlock import UnlockScreen
 
@@ -105,11 +110,26 @@ class ToolItem(ListItem):
         )
         yield Label(SHORTCUTS[self.meta.key], classes="nav-key")
 
+class ThemeSelect(Select[str]):
+    """Theme list whose arrow keys change the palette immediately."""
+
+    async def _on_key(self, event) -> None:
+        if event.key == "down":
+            event.stop()
+            event.prevent_default()
+            self.app.action_cycle_theme()
+            return
+        if event.key == "up":
+            event.stop()
+            event.prevent_default()
+            self.app.action_previous_theme()
+            return
+        await super()._on_key(event)
+
 
 class AtessaApp(App):
     """Persistent API-backed workbench containing all fourteen tools."""
 
-    TITLE = "Atessa Workbench"
     CSS_PATH = "app.tcss"
     ENABLE_COMMAND_PALETTE = True
 
@@ -124,11 +144,11 @@ class AtessaApp(App):
         Binding("ctrl+j", "next_tool", "Next", show=False),
         Binding("ctrl+k", "previous_tool", "Previous", show=False),
         Binding("?", "guide", "Guide"),
-        Binding("ctrl+y", "copy_result", "Copy result"),
+        Binding("ctrl+c", "copy_result", "Copy result", show=False, priority=True),
         Binding("/", "focus_filter", "Filter", show=False),
-        Binding("1", "open_tool('chat')", "Chat", show=False),
-        Binding("2", "open_tool('search')", "Search", show=False),
-        Binding("3", "open_tool('read')", "Read", show=False),
+        Binding("1", "shortcut('1')", "Chat", show=False, priority=True),
+        Binding("2", "shortcut('2')", "Search", show=False, priority=True),
+        Binding("3", "shortcut('3')", "Read", show=False, priority=True),
         Binding("4", "open_tool('image')", "Image", show=False),
         Binding("5", "open_tool('view')", "Vision", show=False),
         Binding("s", "open_tool('shot')", "Shot", show=False),
@@ -141,9 +161,9 @@ class AtessaApp(App):
         Binding("m", "open_tool('models')", "Models"),
         Binding("a", "open_tool('activity')", "Activity", show=False),
         Binding("u", "unlock", "Unlock"),
+        Binding("ctrl+t", "cycle_theme", "Theme"),
         Binding("ctrl+q", "quit", "Quit"),
     ]
-
     def __init__(self) -> None:
         super().__init__()
         self.cfg = Config()
@@ -154,7 +174,9 @@ class AtessaApp(App):
         self.inspector_visible = True
         self._api_closed = False
         self._keys = [pane.META.key for pane in PANES]
-
+        self._theme_index = 0
+        self._register_palettes()
+        self.theme = theme_palette.PALETTE_ORDER[0]
     def compose(self) -> ComposeResult:
         with Horizontal(id="app-shell"):
             with Vertical(id="sidebar"):
@@ -175,19 +197,24 @@ class AtessaApp(App):
                     "[dim]Config-routed runtime models[/dim]",
                     id="api-strip",
                 )
-
             with Vertical(id="main-column"):
                 with Horizontal(id="topbar"):
                     yield Static("◆", id="tool-mark")
                     with Vertical(id="page-copy"):
                         yield Label("ATESSA WORKBENCH", id="breadcrumb")
-                        yield Label("", id="page-title")
+                        yield Label("Chat", id="page-title")
                     guide_button = Button("? Guide", id="guide-button")
                     guide_button.can_focus = False
                     yield guide_button
                     command_button = Button("Commands  ^P", id="command-button")
                     command_button.can_focus = False
                     yield command_button
+                    yield ThemeSelect(
+                        [(name, name) for name in theme_palette.PALETTE_ORDER],
+                        value=theme_palette.PALETTE_ORDER[0],
+                        allow_blank=False,
+                        id="theme-select",
+                    )
                     yield Static("● READY", id="ready-badge")
                     run_button = Button("Send  ^↵", id="run-button", variant="primary")
                     run_button.can_focus = False
@@ -212,14 +239,13 @@ class AtessaApp(App):
                         inspector_roles.can_focus = False
                         yield inspector_roles
                         yield Label("RECENT ACTIVITY", id="insp-activity-title", classes="field-label")
-                        yield Static("No activity yet.", id="insp-activity")
 
                 with Horizontal(id="statusbar"):
                     yield Static("NORMAL", id="mode-indicator")
                     yield Static(self.cfg.base_url, id="endpoint-status", classes="status-item")
                     yield Static("Chat ready", id="last-activity", classes="status-item")
                     yield Static("", id="spend-status", classes="status-item")
-                    yield Static("^y copy  ·  ? guide", classes="status-item")
+                    yield Static("^c copy  ·  ? guide", classes="status-item")
 
     def on_mount(self) -> None:
         table = self.query_one("#insp-roles", DataTable)
@@ -266,6 +292,64 @@ class AtessaApp(App):
     def close_inspector(self) -> None:
         self.action_toggle_inspector()
 
+    def get_theme_variable_defaults(self) -> dict[str, str]:
+        """Seed every CSS variable app.tcss references.
+
+        This is the base palette; each registered Theme overrides the subset it
+        defines, so switching themes re-resolves every $variable live.
+        """
+        return dict(theme_palette.DEFAULT_VARIABLES)
+
+    def _register_palettes(self) -> None:
+        for palette in theme_palette.PALETTES:
+            self.register_theme(
+                Theme(
+                    palette.name,
+                    primary=palette.primary,
+                    background=palette.background,
+                    foreground=palette.foreground,
+                    surface=palette.surface,
+                    panel=palette.panel,
+                    accent=palette.accent,
+                    variables=dict(palette.variables),
+                )
+            )
+
+    def action_cycle_theme(self) -> None:
+        """Advance the live theme list and synchronize the selector."""
+        names = theme_palette.PALETTE_ORDER
+        if not names:
+            return
+        try:
+            current = names.index(self.theme)
+        except ValueError:
+            current = self._theme_index
+        self._theme_index = (current + 1) % len(names)
+        self._set_theme(names[self._theme_index])
+
+    def _set_theme(self, name: str) -> None:
+        if name not in theme_palette.PALETTE_ORDER:
+            return
+        self._theme_index = theme_palette.PALETTE_ORDER.index(name)
+        self.theme = name
+        if self.is_mounted:
+            selector = self.query_one("#theme-select", Select)
+            if selector.value != name:
+                selector.value = name
+        self.notify(f"Theme: {name}")
+
+    def action_previous_theme(self) -> None:
+        names = theme_palette.PALETTE_ORDER
+        if not names:
+            return
+        self._theme_index = (self._theme_index - 1) % len(names)
+        self._set_theme(names[self._theme_index])
+
+    @on(Select.Changed, "#theme-select")
+    def theme_selected(self, event: Select.Changed) -> None:
+        if event.value is not Select.NULL:
+            self._set_theme(str(event.value))
+
     @property
     def active_pane(self) -> ToolPane:
         return self.query_one(f"#pane-{self.active_tool}", ToolPane)
@@ -289,7 +373,7 @@ class AtessaApp(App):
         meta = PANE_BY_KEY[key].META
         self.query_one("#tool-mark", Static).update(TOOL_GLYPHS.get(key, "◆"))
         self.query_one("#breadcrumb", Label).update("ATESSA WORKBENCH")
-        self.query_one("#page-title", Label).update("")
+        self.query_one("#page-title", Label).update(meta.title)
         self.query_one("#run-button", Button).label = f"{meta.action}  ^↵"
         self.query_one("#context-title", Static).update(meta.title)
         route = meta.role or "tool-selected"
@@ -304,6 +388,15 @@ class AtessaApp(App):
 
     def action_open_tool(self, key: str) -> None:
         self.show_tool(key)
+    def action_shortcut(self, key: str) -> None:
+        """Use 1/2/3 for Models tabs when Models is active; otherwise open tools."""
+        if self.active_tool == "models" and key in {"1", "2", "3"}:
+            tab_id = {"1": "tab-catalog", "2": "tab-ping", "3": "tab-routes"}[key]
+            self.query_one("#pane-models").query_one("TabbedContent").active = tab_id
+            return
+        tool_key = {"1": "chat", "2": "search", "3": "read"}.get(key)
+        if tool_key:
+            self.show_tool(tool_key)
 
     def action_focus_filter(self) -> None:
         filter_input = self.query_one("#tool-filter", Input)
@@ -349,21 +442,34 @@ class AtessaApp(App):
         self.push_screen(GuideModal(pane.META), self._load_example)
 
     def action_copy_result(self) -> None:
-        """Put the active pane's result on the system clipboard."""
-        text = self.active_pane.result_text()
+        """Ctrl+C: copy the focused selection, else the active pane's result."""
+        text = self._focused_selection()
+        if not text:
+            text = self.active_pane.result_text()
         if not text.strip():
-            self.notify("Nothing to copy yet", severity="warning")
+            self.notify(
+                "Nothing to copy yet. To quit, type CTRL-Q", severity="warning"
+            )
             return
         self.copy_to_clipboard(text)
         if not _system_clipboard(text):
             self.notify(
-                "Copied via terminal escape; if your terminal ignores it, "
-                "select with the mouse instead",
+                "Copied via terminal escape only; if your terminal ignores it, "
+                "select with the mouse instead. To quit, type CTRL-Q",
                 severity="warning",
             )
             return
-        lines = text.count("\n") + 1
-        self.notify(f"Copied {len(text)} characters ({lines} lines)")
+        self.notify("Text copied. To quit, type CTRL-Q")
+
+    def _focused_selection(self) -> str:
+        """Selected text in the focused input, so Ctrl+C keeps editing behavior."""
+        widget = self.focused
+        if widget is None or not isinstance(widget, (Input, TextArea)):
+            return ""
+        try:
+            return widget.selected_text or ""
+        except Exception:
+            return ""
 
     def action_unlock(self) -> None:
         self.push_screen(UnlockScreen(), lambda _: self._refresh_capability_strips())

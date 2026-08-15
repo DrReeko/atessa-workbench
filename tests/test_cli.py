@@ -111,6 +111,16 @@ def test_models_routes_uses_native_config() -> None:
         output, _ = invoke(cli.models_entry, ["routes", "--json"], {"ATESSA_CONFIG": str(config)})
         assert json.loads(output)["default"] == "custom-model"
 
+def test_model_defaults_use_live_routes() -> None:
+    from atessa_tui.config import ROLE_DEFAULTS
+
+    assert ROLE_DEFAULTS["default"] == "ling-3.0-flash"
+    assert ROLE_DEFAULTS["vision"] == "gpt-5.6-luna"
+    assert ROLE_DEFAULTS["image"] == "gpt-5.6-luna"
+    assert cli.DEFAULT_CHAT_MODEL == "claude-sonnet-4.6"
+    assert cli.DEFAULT_VISION_MODEL == "claude-sonnet-4.6"
+    assert cli.DEFAULT_IMAGE_MODEL == "gpt-5.6-luna"
+
 
 def test_activity_reads_local_ledger() -> None:
     with tempfile.TemporaryDirectory() as tmp:
@@ -236,7 +246,7 @@ def test_weights_save_completes_and_persists() -> None:
             weights.refresh()
 def main() -> None:
     test_weights_save_completes_and_persists()
-    test_github_query_expansion_is_bounded_and_lexical()
+    test_model_defaults_use_live_routes()
     test_github_rate_error_includes_budget()
     test_github_search_deduplicates_and_reports_rate_limit()
     test_models_routes_uses_native_config()

@@ -103,6 +103,7 @@ class ImagePane(ToolPane):
         action="Generate",
         input_label="Prompt",
         output_label="PNG on disk",
+        flow="Describe an image → AI generates it → save the PNG",
         examples=(
             ("Cozy cabin", "a cozy log cabin in a snowy forest at dusk, warm windows"),
             ("Logo sketch", "minimalist geometric fox logo, flat vector style"),
@@ -223,8 +224,9 @@ class VisionPane(ToolPane):
         group="Media",
         role="vision",
         action="Describe",
-        input_label="Image path + question",
+        input_label="Image path and question",
         output_label="Description or OCR",
+        flow="Choose an image → ask a question → AI answers from that file",
         examples=(
             ("Full OCR", "Transcribe every piece of visible text verbatim, preserving layout."),
             ("Describe", VIEW_DEFAULT_PROMPT),
@@ -406,13 +408,14 @@ class ShotPane(ToolPane):
     META = ToolMeta(
         key="shot",
         title="Shot",
-        purpose="Ask about what is on your screen right now — no saving, no file paths.",
+        purpose="Ask a question about everything visible across your connected monitors.",
         request_estimate="1",
         group="Media",
         role="vision",
         action="Capture",
-        input_label="Question about the screen",
-        output_label="Answer + saved capture",
+        input_label="Question about every monitor",
+        output_label="AI answer from the desktop image",
+        flow="Ask a question → capture every connected monitor → AI answers from the image",
         examples=(
             ("Describe", SHOT_DEFAULT_PROMPT),
             ("Read error", "Find any error message on screen and explain what it means."),
@@ -441,7 +444,7 @@ class ShotPane(ToolPane):
             )
             yield Button("Capture", variant="primary", id="shot-capture")
         yield Label(
-            "CAPTURE  full virtual screen · local temporary PNG",
+            "CAPTURE  every connected monitor · temporary PNG used for the AI answer",
             id="shot-path",
         )
         yield LoadingIndicator(id="shot-spinner")

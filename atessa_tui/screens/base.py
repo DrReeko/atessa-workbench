@@ -28,6 +28,7 @@ class ToolMeta:
     action: str = "Run"
     input_label: str = ""
     output_label: str = ""
+    flow: str = ""
     examples: tuple[tuple[str, str], ...] = ()
     avoid: str = ""
     request_estimate: str = "0"
@@ -49,8 +50,7 @@ class PageHead(Vertical):
             f"[b #9bb7ff]Purpose:[/]   {escape(self.meta.purpose)}", classes="purpose"
         )
         yield Static(
-            f"[b #9bb7ff]Flow:[/]      {escape(self.meta.input_label)}"
-            f"  →  {escape(self.meta.output_label)}"
+            f"[b #9bb7ff]Flow:[/]      {escape(self.meta.flow or (self.meta.input_label + ' → ' + self.meta.output_label))}"
             f"    ·    Req.Estim = {escape(self.meta.request_estimate)}",
             classes="flow pane-flow",
         )
@@ -128,8 +128,17 @@ class GuideModal(ModalScreen[str | None]):
 
 def _widget_text(widget) -> str:
     """Best-effort plain text for any result widget, for copying."""
-    from textual.widgets import DataTable, Log, RichLog
+    from textual.widgets import DataTable, Log, RichLog, Static
 
+    if isinstance(widget, Static):
+        from rich.text import Text
+
+        content = widget.content
+        if isinstance(content, str):
+            return content
+        if isinstance(content, Text):
+            return content.plain
+        return str(content)
     if isinstance(widget, TextArea):
         return widget.text
     if isinstance(widget, Markdown):

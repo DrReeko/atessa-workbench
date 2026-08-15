@@ -3,7 +3,7 @@
 Proxy quirks (learned from the shell CLIs):
 - /images/generations is broken; image gen goes through /responses image_generation tool.
 - The proxy cannot fetch remote URLs: vision inputs must be base64 data URLs.
-- No /embeddings, /audio, /moderations (405).
+- No /embeddings or /moderations (405).
 - Image tool ignores explicit sizes; aspect is steered via the prompt.
 """
 from __future__ import annotations

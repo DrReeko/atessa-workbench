@@ -100,8 +100,9 @@ All commands support `--help` and accept optional flags such as `--json` or `--m
 | `atessa-models` | Browse model catalog, view request weights, and set role routes. | `[list\|routes\|set ROLE MODEL]` |
 | `atessa-activity`| Inspect the local request count and credit ledger. | `[--days N] [--json]` |
 | `atessa-ghsearch`| Lexical natural-language search over GitHub repositories and users. | `"query" [--type repos\|people] [--deep] [--json]` |
+
+The `atessa-models` command and Models pane fetch the complete live model catalog from the configured `/v1/models` endpoint. Use **Reload** to refresh it; filtering `claude` shows Claude entries whenever the provider exposes them.
 | `websearch` | Legacy proxy-synthesized search query alias. | `"query"` |
-| `atessa-transcribe` | Speech-to-text placeholder (returns clear guidance for Agent-Reach). | `<audio-path>` |
 
 ---
 
@@ -130,6 +131,8 @@ The TUI workbench organizes 14 production tool panes into four semantic groups:
 
 ### Key Bindings & Navigation
 - `Ctrl+J` / `Ctrl+K`: Cycle through tool panes sequentially.
+- `Down` while the theme selector is focused: Apply the next built-in theme immediately; `Up` moves backward. The selector is also available in the top bar.
+- `Ctrl+T`: Cycle through built-in workbench themes (Midnight, Nord, Dracula, Tokyo Night, Aurora).
 - `Ctrl+I`: Toggle the side inspector panel.
 - `Ctrl+L`: Clear active pane output or chat log.
 - `Esc`: Close modals or popups.

@@ -31,7 +31,6 @@ EXECUTABLES = [
     ("atessa-search", "atessa_tui.cli", "search_entry"),
     ("atessa-shell", "atessa_tui.cli", "shell_entry"),
     ("atessa-shot", "atessa_tui.cli", "shot_entry"),
-    ("atessa-transcribe", "atessa_tui.cli", "transcribe_entry"),
     ("atessa-view", "atessa_tui.cli", "view_entry"),
     ("websearch", "atessa_tui.cli", "websearch_entry"),
 ]
@@ -92,6 +91,7 @@ hiddenimports = [
     "atessa_tui.weights",
     "atessa_tui.capabilities",
     "atessa_tui.metering",
+    "atessa_tui.themes",
     "atessa_tui.screens.core",
     "atessa_tui.screens.media",
     "atessa_tui.screens.compare",

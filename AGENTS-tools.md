@@ -47,9 +47,9 @@ Prefer these over native web tools, which are broken against the atessa.top prox
 - **Does:** Writes a real PNG to disk from a text prompt using the proxy's `/responses` endpoint with `image_generation` tool.
 - **Why:** A text-only agent cannot ship a site or deck that needs artwork. This makes
   assets a build step instead of a placeholder comment.
-- **Gotchas:** The backend ignores explicit pixel sizes — steer shape with `--aspect`
-  (square ≈1254×1254, landscape ≈1672×941, portrait ≈941×1672). Default model is `gpt-5.5`.
-  The `--model` parameter is forwarded to `/responses`. Consult `/v1/models` or live provider status for current model availability.
+- **Gotchas:** Aspect is requested from the Responses API image-generation tool and verified after generation.
+  Default model is `gpt-5.6-luna`. The `--model` parameter is forwarded to `/responses`.
+  Consult `/v1/models` or live provider status for current model availability.
 
 ### `atessa-view <image-path> ["prompt"] [--model M] [--max N]`
 - **Does:** Describes or OCRs a **local** image file.
@@ -119,15 +119,12 @@ Prefer these over native web tools, which are broken against the atessa.top prox
 - **Why:** Finds repos and people by intent rather than exact repo name.
 - **Gotcha:** Uses concise lexical query expansion. Authenticated requests use `GITHUB_TOKEN` when present for a 30 req/min budget; unauthenticated searches are limited to 10 req/min/IP.
 
-### `atessa-transcribe` — NOT AVAILABLE
-- Speech-to-text has no backend command on the proxy. Do not invoke as an available command.
-
 ### `atessa` — the TUI Workbench
 Single command launcher (`atessa`). Eagerly registers 14 production panes: Chat (`chat`), Search (`search`),
 Read (`read`), Image (`image`), View (`view`), Shot (`shot`), Council (`council`), Bench (`bench`),
 Arena (`arena`), Explain (`explain`), Git (`git`), Command (`shell`), Models (`models`), and Activity (`activity`).
 Every workbench tool also has a matching CLI except that the TUI is the only interface for the paste-in
-Credit costs importer. `atessa-ghsearch` remains an external CLI tool, and speech transcription is unavailable.
+Credit costs importer. `atessa-ghsearch` remains an external CLI tool.
 
 Also on PATH (WSL): `agent-reach` + per-platform tools. Live channels: GitHub (`gh`),
 YouTube (`yt-dlp`), RSS/Atom, Bilibili search, Jina web-read. Run `agent-reach doctor`

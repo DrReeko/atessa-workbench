@@ -9,19 +9,23 @@ import time
 from pathlib import Path
 
 
+from rich.markup import escape
 from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Horizontal, ItemGrid, VerticalScroll
-from textual.message import Message
+from textual.css.query import NoMatches
+from textual.binding import Binding
+from textual.containers import Container, Horizontal, VerticalScroll
+from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
-    Checkbox,
     Collapsible,
     DataTable,
     Input,
     Markdown,
+    OptionList,
     Static,
 )
+from textual.widgets.option_list import Option
 
 from .. import capabilities
 from ..api import ApiError
@@ -41,6 +45,7 @@ DEFAULT_BENCH_PROMPT = "Explain what a mutex is in one paragraph."
 # A run at or above this many credits gets called out before it is started.
 EXPENSIVE_RUN = 25
 ARENA_MAX_WEIGHT = 7.0
+ARENA_RANDOM = ("__random__",)  # ModelPickerScreen sentinel: pick a random arena pair
 
 
 def arena_eligible_models(models: list[str]) -> list[str]:
@@ -81,84 +86,230 @@ def _picker_label(model: str) -> str:
     return model if len(model) <= 27 else f"{model[:26]}…"
 
 
-class ModelPicker(VerticalScroll):
-    """Multi-column checkbox picker that retains model IDs without a tall list."""
+def _picker_row(model: str, selected: bool) -> str:
+    """A checkable row: visible glyph, escaped name, dim cost badge."""
+    mark = "☑" if selected else "☐"
+    cost = weight_for(model)
+    badge = f"  [dim]{cost:g}×[/]" if cost else ""
+    return f"{mark}  {escape(model)}{badge}"
 
-    class SelectionChanged(Message):
-        """Posted after a user changes the selected models."""
 
-        def __init__(self, picker: "ModelPicker") -> None:
-            super().__init__()
-            self.picker = picker
+class ModelPickerScreen(ModalScreen[tuple[str, ...] | None]):
+    """Pop-up model chooser: filter-as-you-type, Space toggles, Ctrl+Enter confirms.
 
-        @property
-        def control(self) -> "ModelPicker":
-            return self.picker
+    Dismisses with the chosen model IDs in catalog order, or None when
+    cancelled. When show_random is set, a "Random pair" button dismisses
+    with ARENA_RANDOM instead.
+    """
 
-    def __init__(self, *, id: str) -> None:
-        super().__init__(id=id, classes="model-picker")
-        self._models: tuple[str, ...] = ()
-        self._selected: set[str] = set()
-        self._by_choice_id: dict[str, str] = {}
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("space", "toggle", "Toggle"),
+        Binding("ctrl+enter", "confirm", "Done"),
+    ]
+
+    def __init__(
+        self,
+        *,
+        title: str,
+        models: list[str],
+        selected: list[str] | tuple[str, ...] = (),
+        min_count: int = 0,
+        max_count: int = 0,
+        show_random: bool = False,
+    ) -> None:
+        super().__init__()
+        self._title = title
+        self._models = list(models)
+        self._selected = set(selected).intersection(models)
+        self._min = min_count
+        self._max = max_count
+        self._show_random = show_random
+
+    DEFAULT_CSS = """
+    ModelPickerScreen {
+        align: center middle;
+        background: $background 60%;
+    }
+    ModelPickerScreen #picker-card {
+        width: 80;
+        max-width: 96%;
+        height: auto;
+        max-height: 88%;
+        border: round $primary;
+        background: $surface;
+        padding: 1 2;
+    }
+    ModelPickerScreen #picker-title {
+        text-style: bold;
+        width: 100%;
+    }
+    ModelPickerScreen #picker-subtitle {
+        color: $text-muted;
+        width: 100%;
+        margin-bottom: 1;
+    }
+    ModelPickerScreen #picker-filter { margin-bottom: 1; }
+    ModelPickerScreen #picker-list {
+        width: 100%;
+        height: auto;
+        max-height: 22;
+        border: blank;
+        background: $surface;
+    }
+    ModelPickerScreen #picker-footer {
+        height: 3;
+        margin-top: 1;
+        border-top: solid $panel;
+        padding-top: 1;
+    }
+    ModelPickerScreen #picker-count {
+        width: 1fr;
+        color: $text-muted;
+        content-align: left middle;
+    }
+    ModelPickerScreen #picker-footer Button {
+        min-width: 10;
+        margin-left: 1;
+    }
+    """
+
+    def _subtitle(self) -> str:
+        hints = (
+            "↑↓ move · [b]Space[/b] toggles · [b]Ctrl+Enter[/b] confirms · "
+            "[b]Esc[/b] cancels"
+        )
+        if self._min == 2 and self._max == 2:
+            hints += " · choose exactly 2"
+        elif self._max == 1:
+            hints += " · choose one"
+        return hints
 
     def compose(self) -> ComposeResult:
-        yield ItemGrid(
-            classes="model-picker-grid",
-            min_column_width=24,
-            max_column_width=32,
-            stretch_height=False,
-            regular=True,
-        )
-
-    @property
-    def selected(self) -> tuple[str, ...]:
-        """Selected IDs in the same stable order as the live catalog."""
-        return tuple(model for model in self._models if model in self._selected)
-
-    async def set_models(
-        self, models: list[str], selected: list[str] | tuple[str, ...] = ()
-    ) -> None:
-        """Replace choices while retaining only selections still in the catalog."""
-        self._models = tuple(models)
-        self._selected = set(selected).intersection(models)
-        self._by_choice_id = {}
-        try:
-            grid = self.query_one(".model-picker-grid", ItemGrid)
-        except Exception:
-            return
-        await grid.remove_children()
-        if not models:
-            await grid.mount(Static("No models available.", classes="model-picker-empty"))
-            return
-        choices: list[Checkbox] = []
-        for index, model in enumerate(models):
-            choice_id = f"model-choice-{index}"
-            self._by_choice_id[choice_id] = model
-            choices.append(
-                Checkbox(
-                    _picker_label(model),
-                    value=model in self._selected,
-                    id=choice_id,
-                    classes="model-choice",
-                    tooltip=model,
-                )
+        with Container(id="picker-card"):
+            yield Static(self._title, id="picker-title")
+            yield Static(self._subtitle(), id="picker-subtitle")
+            yield Input(
+                placeholder=f"Type to filter {len(self._models)} models…",
+                id="picker-filter",
             )
-        await grid.mount(*choices)
+            yield OptionList(id="picker-list")
+            with Horizontal(id="picker-footer"):
+                yield Static("", id="picker-count")
+                if self._max != 1:
+                    yield Button("Select all", id="picker-all")
+                yield Button("Clear", id="picker-clear")
+                if self._show_random:
+                    yield Button("Random pair", id="picker-random")
+                yield Button("Cancel", id="picker-cancel")
+                yield Button("Done", variant="primary", id="picker-done")
 
-    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
-        choice = event.checkbox
-        if not choice.has_class("model-choice") or choice.id is None:
-            return
-        model = self._by_choice_id.get(choice.id)
-        if model is None:
-            return
-        event.stop()
-        if event.value:
-            self._selected.add(model)
+    def on_mount(self) -> None:
+        self._refresh()
+        self.query_one("#picker-filter", Input).focus()
+
+    def _filtered(self) -> list[str]:
+        needle = self.query_one("#picker-filter", Input).value.strip().casefold()
+        if not needle:
+            return self._models
+        return [model for model in self._models if needle in model.casefold()]
+
+    def _refresh(self) -> None:
+        """Rebuild rows; keep the highlight parked on the same model."""
+        listing = self.query_one("#picker-list", OptionList)
+        highlighted_model: str | None = None
+        if listing.highlighted is not None and listing.highlighted < listing.option_count:
+            highlighted_model = listing.get_option_at_index(listing.highlighted).id
+        options = [
+            Option(_picker_row(model, model in self._selected), id=model)
+            for model in self._filtered()
+        ]
+        listing.clear_options()
+        listing.add_options(options)
+        if highlighted_model is not None:
+            for index, option in enumerate(options):
+                if option.id == highlighted_model:
+                    listing.highlighted = index
+                    listing.scroll_to_highlight()
+                    break
+        if options and listing.highlighted is None:
+            listing.highlighted = 0
+            listing.scroll_to_highlight()
+        self._refresh_footer()
+    def _refresh_footer(self) -> None:
+        count = len(self._selected)
+        valid = (not self._min or count >= self._min) and (
+            not self._max or count <= self._max
+        )
+        self.query_one("#picker-done", Button).disabled = not valid
+        if self._min == 2 and self._max == 2:
+            label = f"{count} of 2 chosen" + (" ✓" if count == 2 else "")
         else:
+            label = f"{count} selected"
+        self.query_one("#picker-count", Static).update(label)
+    def _toggle(self, model: str) -> None:
+        if self._max == 1:
+            self._selected = {model}
+        elif model in self._selected:
             self._selected.discard(model)
-        self.post_message(self.SelectionChanged(self))
+        else:
+            self._selected.add(model)
+        self._refresh()
 
+    @on(OptionList.OptionSelected, "#picker-list")
+    def _option_selected(self, event: OptionList.OptionSelected) -> None:
+        event.stop()
+        if event.option_id is not None:
+            self._toggle(event.option_id)
+
+    @on(Input.Changed, "#picker-filter")
+    def _filter_changed(self) -> None:
+        self._refresh()
+
+    @on(Button.Pressed, "#picker-all")
+    def _select_all(self, event: Button.Pressed) -> None:
+        event.stop()
+        self._selected = set(self._filtered())
+        self._refresh()
+
+    @on(Button.Pressed, "#picker-clear")
+    def _clear(self, event: Button.Pressed) -> None:
+        event.stop()
+        self._selected.clear()
+        self._refresh()
+
+    @on(Button.Pressed, "#picker-random")
+    def _random_pair(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.dismiss(ARENA_RANDOM)
+
+    @on(Button.Pressed, "#picker-cancel")
+    def _cancel(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#picker-done")
+    def _done(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.action_confirm()
+
+    def action_toggle(self) -> None:
+        listing = self.query_one("#picker-list", OptionList)
+        if listing.highlighted is not None and listing.highlighted < listing.option_count:
+            model = listing.get_option_at_index(listing.highlighted).id
+            if model is not None:
+                self._toggle(model)
+
+    def action_confirm(self) -> None:
+        count = len(self._selected)
+        if self._min and count < self._min:
+            return
+        if self._max and count > self._max:
+            return
+        self.dismiss(tuple(model for model in self._models if model in self._selected))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
 def _default_record() -> dict:
     return {"elo": 1000.0, "games": 0, "mu": 25.0, "sigma": 25.0 / 3}
@@ -258,7 +409,8 @@ class CouncilPane(ToolPane):
         role="power",
         action="Ask council",
         input_label="Decision question",
-        output_label="Verdict + opinions",
+        output_label="Verdict plus the model opinions",
+        flow="Ask a question → models answer → judge picks a verdict",
         examples=(
             ("Architecture", "SQLite or Postgres for a local-first developer tool?"),
             ("Risk review", "What are the failure modes in this rollout plan?"),
@@ -273,11 +425,24 @@ class CouncilPane(ToolPane):
     CouncilPane Horizontal.input-row { height: 3; }
     CouncilPane Horizontal.input-row Input { width: 1fr; }
     CouncilPane Horizontal.input-row Button { width: auto; min-width: 16; }
-    CouncilPane ModelPicker {
-        height: 8;
+    CouncilPane #council-picker-row { height: 3; margin-bottom: 1; }
+    CouncilPane #council-selection {
+        width: 1fr;
+        color: $text-muted;
+        content-align: left middle;
+        padding: 0 1;
         border: round $primary;
-        margin-bottom: 1;
     }
+    CouncilPane #council-choose { min-width: 16; margin-left: 1; }
+    CouncilPane #council-judge-row { height: 3; margin-bottom: 1; }
+    CouncilPane #council-judge {
+        width: 1fr;
+        color: $text-muted;
+        content-align: left middle;
+        padding: 0 1;
+        border: round $accent;
+    }
+    CouncilPane #council-choose-judge { min-width: 16; margin-left: 1; }
     CouncilPane VerticalScroll#council-results {
         width: 1fr;
         height: 1fr;
@@ -295,6 +460,9 @@ class CouncilPane(ToolPane):
     def __init__(self) -> None:
         super().__init__()
         self._run_id = 0
+        self._models: list[str] = []
+        self._selected: list[str] = []
+        self._judge: str = ""
 
 
     def compose_body(self) -> ComposeResult:
@@ -304,7 +472,12 @@ class CouncilPane(ToolPane):
                 id="council-prompt",
             )
             yield Button("Ask council", id="council-go", variant="primary")
-        yield ModelPicker(id="council-models")
+        with Horizontal(id="council-picker-row"):
+            yield Static("Loading models…", id="council-selection")
+            yield Button("Choose models…", id="council-choose")
+        with Horizontal(id="council-judge-row"):
+            yield Static(f"Judge: {escape(self.model_for('power'))}", id="council-judge")
+            yield Button("Choose judge…", id="council-choose-judge")
         yield Static("", id="council-cost", classes="cost-preview")
         yield VerticalScroll(id="council-results")
 
@@ -313,33 +486,104 @@ class CouncilPane(ToolPane):
 
     @work(exclusive=True, group="council-models")
     async def _load_models(self) -> None:
-        selector = self.query_one("#council-models", ModelPicker)
         try:
             models = await self.api.models()
         except ApiError as error:
             self.notify(f"models: {error}", severity="error")
             self.app.record_activity("council", "error", f"models: {error}")
             return
-        selected: list[str] = []
-        for role in ROLE_KEYS:
-            model = self.model_for(role)
-            if model in models and model not in selected:
-                selected.append(model)
-        await selector.set_models(models, selected)
+        if not self.is_mounted:
+            return
+        self._models = list(models)
+        self._judge = self.model_for("power") if self.model_for("power") in models else ""
+        defaults = [
+            model
+            for model in self._models
+            if any(self.model_for(role) == model for role in ROLE_KEYS)
+        ]
+        self._set_selected(defaults)
+        self._update_judge_label()
         self._update_cost()
 
-    @on(ModelPicker.SelectionChanged, "#council-models")
-    def _council_selection_changed(self, event: ModelPicker.SelectionChanged) -> None:
+    @on(Button.Pressed, "#council-choose")
+    def _choose_models(self, event: Button.Pressed) -> None:
         event.stop()
-        self._update_cost()
-
-    def _update_cost(self) -> None:
-        models = list(self.query_one("#council-models", ModelPicker).selected)
-        # The judge is one extra call on top of every member.
-        self.query_one("#council-cost", Static).update(
-            describe_run_cost(models + [self.model_for("power")], "per council run")
+        if not self._models:
+            self.notify(
+                "Model catalog not loaded yet — try again in a moment",
+                severity="warning",
+            )
+            return
+        self.app.push_screen(
+            ModelPickerScreen(
+                title="Choose council models",
+                models=self._models,
+                selected=self._selected,
+            ),
+            self._models_picked,
         )
 
+    def _models_picked(self, result: tuple[str, ...] | None) -> None:
+        if result is not None:
+            self._set_selected(list(result))
+            self._update_cost()
+
+    @on(Button.Pressed, "#council-choose-judge")
+    def _choose_judge(self, event: Button.Pressed) -> None:
+        event.stop()
+        if not self._models:
+            self.notify(
+                "Model catalog not loaded yet — try again in a moment",
+                severity="warning",
+            )
+            return
+        self.app.push_screen(
+            ModelPickerScreen(
+                title="Choose council judge",
+                models=self._models,
+                selected=(self._judge,) if self._judge else (),
+                max_count=1,
+            ),
+            self._judge_picked,
+        )
+
+    def _judge_picked(self, result: tuple[str, ...] | None) -> None:
+        if result is not None:
+            self._judge = result[0] if result else ""
+            self._update_judge_label()
+            self._update_cost()
+
+    def _update_judge_label(self) -> None:
+        try:
+            label = self.query_one("#council-judge", Static)
+        except NoMatches:
+            return
+        judge = self._judge or self.model_for("power")
+        suffix = "" if self._judge else " (power route fallback)"
+        label.update(f"Judge: {escape(judge)}{suffix}")
+
+    def _set_selected(self, models: list[str]) -> None:
+        self._selected = [model for model in self._models if model in models]
+        try:
+            label = self.query_one("#council-selection", Static)
+        except NoMatches:
+            return
+        if self._selected:
+            names = escape(", ".join(self._selected))
+            if len(names) > 72:
+                names = names[:69] + "…"
+            label.update(f"[b]{len(self._selected)}[/b] · {names}")
+        else:
+            label.update("[dim]No models chosen — use Choose models…[/dim]")
+
+    def _update_cost(self) -> None:
+        if not self.query("#council-cost"):
+            return
+        judge = self._judge or self.model_for("power")
+        # The judge is one extra call on top of every member.
+        self.query_one("#council-cost", Static).update(
+            describe_run_cost(self._selected + [judge], "per council run")
+        )
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "council-go":
             event.stop()
@@ -353,7 +597,7 @@ class CouncilPane(ToolPane):
         if not prompt:
             self.notify("Enter a prompt first", severity="warning")
             return
-        models = list(self.query_one("#council-models", ModelPicker).selected)
+        models = list(self._selected)
         if not models:
             self.notify("Select at least one council model", severity="warning")
             return
@@ -390,7 +634,7 @@ class CouncilPane(ToolPane):
             if succeeded
         ]
         verdict = self.query_one("#council-verdict", Markdown)
-        judge_model = self.model_for("power")
+        judge_model = self._judge or self.model_for("power")
         if not successful:
             credits, unknown = record_models("council", models)
             verdict.update("**Judge:** every council member failed; nothing to judge.")
@@ -450,7 +694,8 @@ class BenchPane(ToolPane):
         role="",
         action="Race",
         input_label="Benchmark prompt",
-        output_label="Live performance table",
+        output_label="Speed and credit table",
+        flow="Enter one prompt → models race → compare speed and cost",
         examples=(
             ("Short answer", "Explain optimistic concurrency in one paragraph."),
             ("Code task", "Write a Python LRU cache with type hints."),
@@ -465,11 +710,15 @@ class BenchPane(ToolPane):
     BenchPane Horizontal.input-row { height: 3; }
     BenchPane Horizontal.input-row Input { width: 1fr; }
     BenchPane Horizontal.input-row Button { width: auto; min-width: 10; }
-    BenchPane ModelPicker {
-        height: 8;
+    BenchPane #bench-picker-row { height: 3; margin-bottom: 1; }
+    BenchPane #bench-selection {
+        width: 1fr;
+        color: $text-muted;
+        content-align: left middle;
+        padding: 0 1;
         border: round $primary;
-        margin-bottom: 1;
     }
+    BenchPane #bench-choose { min-width: 16; margin-left: 1; }
     BenchPane DataTable#bench-table {
         height: auto;
         min-height: 6;
@@ -481,6 +730,8 @@ class BenchPane(ToolPane):
     def __init__(self) -> None:
         super().__init__()
         self._run_id = 0
+        self._models: list[str] = []
+        self._selected: list[str] = []
 
     def compose_body(self) -> ComposeResult:
         with Horizontal(classes="input-row"):
@@ -490,7 +741,9 @@ class BenchPane(ToolPane):
                 id="bench-prompt",
             )
             yield Button("Race", id="bench-go", variant="primary")
-        yield ModelPicker(id="bench-models")
+        with Horizontal(id="bench-picker-row"):
+            yield Static("Loading models…", id="bench-selection")
+            yield Button("Choose models…", id="bench-choose")
         yield Static("", id="bench-cost", classes="cost-preview")
         yield DataTable(id="bench-table")
 
@@ -503,25 +756,60 @@ class BenchPane(ToolPane):
 
     @work(exclusive=True, group="bench-models")
     async def _load_models(self) -> None:
-        selector = self.query_one("#bench-models", ModelPicker)
         try:
             models = await self.api.models()
         except ApiError as error:
             self.notify(f"models: {error}", severity="error")
             self.app.record_activity("bench", "error", f"models: {error}")
             return
-        await selector.set_models(models)
+        if not self.is_mounted:
+            return
+        self._models = list(models)
+        self._set_selected([])
         self._update_cost()
 
-    @on(ModelPicker.SelectionChanged, "#bench-models")
-    def _bench_selection_changed(self, event: ModelPicker.SelectionChanged) -> None:
+    @on(Button.Pressed, "#bench-choose")
+    def _choose_models(self, event: Button.Pressed) -> None:
         event.stop()
-        self._update_cost()
+        if not self._models:
+            self.notify(
+                "Model catalog not loaded yet — try again in a moment",
+                severity="warning",
+            )
+            return
+        self.app.push_screen(
+            ModelPickerScreen(
+                title="Choose benchmark models",
+                models=self._models,
+                selected=self._selected,
+            ),
+            self._models_picked,
+        )
+
+    def _models_picked(self, result: tuple[str, ...] | None) -> None:
+        if result is not None:
+            self._set_selected(list(result))
+            self._update_cost()
+
+    def _set_selected(self, models: list[str]) -> None:
+        self._selected = [model for model in self._models if model in models]
+        try:
+            label = self.query_one("#bench-selection", Static)
+        except NoMatches:
+            return
+        if self._selected:
+            names = escape(", ".join(self._selected))
+            if len(names) > 72:
+                names = names[:69] + "…"
+            label.update(f"[b]{len(self._selected)}[/b] · {names}")
+        else:
+            label.update("[dim]No models chosen — use Choose models…[/dim]")
 
     def _update_cost(self) -> None:
-        models = list(self.query_one("#bench-models", ModelPicker).selected)
+        if not self.query("#bench-cost"):
+            return
         self.query_one("#bench-cost", Static).update(
-            describe_run_cost(models, "per race")
+            describe_run_cost(self._selected, "per race")
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -533,7 +821,7 @@ class BenchPane(ToolPane):
         if not prompt:
             self.notify("Enter a prompt first", severity="warning")
             return
-        models = list(self.query_one("#bench-models", ModelPicker).selected)
+        models = list(self._selected)
         if not models:
             self.notify("Select at least one model to benchmark", severity="warning")
             return
@@ -669,7 +957,8 @@ class ArenaPane(ToolPane):
         role="",
         action="New round",
         input_label="Evaluation prompt",
-        output_label="Blind A/B + ELO",
+        output_label="Blind A/B result and ratings",
+        flow="Ask a question → compare two hidden answers → vote",
         examples=(
             ("Reasoning", "Design idempotency for a webhook consumer."),
             ("Writing", "Explain database indexes to a junior developer."),
@@ -688,6 +977,15 @@ class ArenaPane(ToolPane):
 
     DEFAULT_CSS = """
     ArenaPane Input#arena-prompt { height: 3; }
+    ArenaPane #arena-pair-row { height: 3; }
+    ArenaPane #arena-pair {
+        width: 1fr;
+        color: $text-muted;
+        content-align: left middle;
+        padding: 0 1;
+        border: round $primary;
+    }
+    ArenaPane #arena-pair-row Button { min-width: 13; margin-left: 1; }
     ArenaPane Horizontal#arena-buttons { height: 3; }
     ArenaPane Horizontal#arena-buttons Button {
         width: 1fr;
@@ -717,8 +1015,14 @@ class ArenaPane(ToolPane):
         self.voted = True
         self.round_credits = 0.0
         self._run_id = 0
+        self._pair_override: tuple[str, str] | None = None
+        self._pair_catalog: list[str] = []
     def compose_body(self) -> ComposeResult:
         yield Input(placeholder="Prompt for a blind comparison", id="arena-prompt")
+        with Horizontal(id="arena-pair-row"):
+            yield Static("Pair: random each round", id="arena-pair")
+            yield Button("Choose pair…", id="arena-choose")
+            yield Button("Random pair", id="arena-random")
         with Horizontal(id="arena-buttons"):
             yield Button("New round [n]", id="arena-new", variant="primary")
             yield Button("Vote A [1]", id="arena-vote-a")
@@ -738,8 +1042,8 @@ class ArenaPane(ToolPane):
             board.add_columns("rank", "model", "rating", "±", "games")
         else:
             board.add_columns("rank", "model", "ELO", "games")
+        self._load_catalog()
         self._refresh_board()
-
     def _refresh_board(self) -> None:
         board = self.query_one("#arena-board", DataTable)
         board.clear()
@@ -769,6 +1073,8 @@ class ArenaPane(ToolPane):
             "arena-vote-a": lambda: self.action_vote("a"),
             "arena-vote-b": lambda: self.action_vote("b"),
             "arena-vote-tie": lambda: self.action_vote("tie"),
+            "arena-choose": self.action_choose_pair,
+            "arena-random": self.action_random_pair,
         }
         action = actions.get(event.button.id or "")
         if action is not None:
@@ -796,6 +1102,47 @@ class ArenaPane(ToolPane):
         self._run_id += 1
         self._run_round(prompt, self._run_id)
 
+    def action_choose_pair(self) -> None:
+        if not self._pair_catalog:
+            self.notify(
+                "Model catalog not loaded yet — try again in a moment",
+                severity="warning",
+            )
+            return
+        self.app.push_screen(
+            ModelPickerScreen(
+                title="Choose arena pair",
+                models=self._pair_catalog,
+                selected=self._pair_override or (),
+                min_count=2,
+                max_count=2,
+                show_random=True,
+            ),
+            self._pair_picked,
+        )
+
+    def action_random_pair(self) -> None:
+        self._pair_override = None
+        self.query_one("#arena-pair", Static).update("Pair: random each round")
+
+    def _pair_picked(self, result: tuple[str, ...] | None) -> None:
+        if result is None:
+            return
+        if result == ARENA_RANDOM:
+            self.action_random_pair()
+            return
+        self._pair_override = (result[0], result[1])
+        self.query_one("#arena-pair", Static).update(
+            f"Pair: {escape(result[0])}  vs  {escape(result[1])}"
+        )
+
+    @work(exclusive=True, group="arena-catalog")
+    async def _load_catalog(self) -> None:
+        try:
+            self._pair_catalog = await self.api.models()
+        except ApiError:
+            self._pair_catalog = []
+
     @work(exclusive=True, group="arena-round")
     async def _run_round(self, prompt: str, run_id: int) -> None:
         if self._run_id != run_id:
@@ -812,6 +1159,7 @@ class ArenaPane(ToolPane):
         if self._run_id != run_id:
             return
         catalog_size = len(models)
+        self._pair_catalog = models
         models = arena_eligible_models(models)
         if len(models) < 2:
             detail = (
@@ -823,6 +1171,13 @@ class ArenaPane(ToolPane):
             return
 
         model_a, model_b = random.sample(models, 2)
+        fell_back = False
+        if self._pair_override:
+            first, second = self._pair_override
+            if first != second and first in models and second in models:
+                model_a, model_b = first, second
+            else:
+                fell_back = True
         self.pair = (model_a, model_b)
         panel_a = self.query_one("#arena-panel-a", Markdown)
         panel_b = self.query_one("#arena-panel-b", Markdown)
@@ -831,7 +1186,9 @@ class ArenaPane(ToolPane):
         excluded = catalog_size - len(models)
         status.update(
             f"Round in progress — identities hidden · max {ARENA_MAX_WEIGHT:g}× "
-            f"· {excluded} expensive/unpriced excluded. Vote 1 / 2 / t."
+            f"· {excluded} expensive/unpriced excluded."
+            + (" Requested pair unavailable — random pair used." if fell_back else "")
+            + " Vote 1 / 2 / t."
         )
         messages = [{"role": "user", "content": prompt}]
 

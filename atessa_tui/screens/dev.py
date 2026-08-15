@@ -229,9 +229,9 @@ class ExplainPane(ToolPane):
         request_estimate="1",
         group="Develop",
         role="default",
-        action="Diagnose",
         input_label="Error or traceback",
-        output_label="Cause, fix, verify",
+        output_label="Cause, fix, and check",
+        flow="Paste the error → AI explains the cause → follow the fix and check it",
         examples=(
             ("Python import", "ModuleNotFoundError: No module named 'textual'"),
             ("TypeScript type", "TS2322: Type 'string | undefined' is not assignable to type 'string'."),
@@ -326,9 +326,9 @@ class GitPane(ToolPane):
         request_estimate="0 local · 1 for AI",
         group="Develop",
         role="power",
-        action="Review diff",
         input_label="Staged diff",
-        output_label="Commit + review",
+        output_label="Review and commit message",
+        flow="Show the diff → AI reviews it → get a commit message",
         examples=(
             ("Feature commit", "feat(cli): add explicit command approval"),
             ("Bug-fix commit", "fix(git): preserve multiline commit bodies"),
@@ -364,7 +364,8 @@ class GitPane(ToolPane):
             self.app.call_from_thread(self._update_repo_state, state)
 
     def _update_repo_state(self, state: str) -> None:
-        self.query_one("#git-repo-state", Static).update(state)
+        if self.is_mounted and self.query("#git-repo-state"):
+            self.query_one("#git-repo-state", Static).update(state)
 
     @on(TextArea.Changed, "#git-message")
     def _on_message_changed(self) -> None:
@@ -602,9 +603,9 @@ class CommandPane(ToolPane):
         request_estimate="1 draft · 0 run",
         group="Develop",
         role="default",
-        action="Suggest command",
         input_label="Desired outcome",
-        output_label="Command + log",
+        output_label="Command and log",
+        flow="Describe the outcome → get one command → inspect it before running",
         examples=(
             ("Largest files", "Find the five largest files under the current directory."),
             ("Port owner", "Show which process is listening on port 8000."),
@@ -819,7 +820,8 @@ class ActivityPane(ToolPane):
         role="",
         action="Refresh",
         input_label="Session filter",
-        output_label="Calls + cost",
+        output_label="Calls and cost",
+        flow="Filter the local log → see what ran and what it cost",
         examples=(
             ("Failures", "error"),
             ("Images", ".png"),

@@ -54,7 +54,7 @@ ROLE_DEFAULTS = {
     # Free and image-capable: text extraction should not burn credits.
     "ocr": "composer-2.5",
     "power": "kimi-k2.7-code",
-    "image": "gpt-5.5",
+    "image": "gpt-5.6-luna",
 }
 # Tried in order when the chosen OCR model is unavailable.
 OCR_FALLBACKS = ("composer-2.5", "composer-2.5-fast", "gpt-5.6-luna")

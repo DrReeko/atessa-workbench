@@ -53,7 +53,16 @@ READ_TIMEOUT = 15.0
 MAX_READ_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
+class ModelsFilterInput(Input):
+    """Filter model names without consuming the Models tab number keys."""
 
+    async def _on_key(self, event) -> None:
+        await super()._on_key(event)
+
+    def check_consume_key(self, key: str, character: str | None) -> bool:
+        if key in {"1", "2", "3"}:
+            return False
+        return super().check_consume_key(key, character)
 
 def strip_html(text: str) -> str:
     """Convert an HTML response to readable plain Markdown-compatible text."""
@@ -87,13 +96,14 @@ class ChatPane(ToolPane):
     META = ToolMeta(
         key="chat",
         title="Chat",
-        purpose="Swap which model answers mid-thread, with the conversation intact.",
+        purpose="Chat with the selected model and keep the thread together.",
         request_estimate="1 per message",
         group="Core",
         role="default",
         action="Send",
         input_label="Message",
-        output_label="Reply, history intact",
+        output_label="Reply in this thread",
+        flow="Write a message → AI replies in the same conversation",
         examples=(
             ("Explain", "Explain optimistic concurrency in practical terms."),
             ("Draft", "Draft a concise release note for a safer config migration."),
@@ -245,16 +255,17 @@ class SearchPane(ToolPane):
     META = ToolMeta(
         key="search",
         title="Search",
-        purpose="One query across the sources where real fixes get posted.",
+        purpose="Search developer sources for fixes, examples, and current discussions.",
         request_estimate="0",
         group="Core",
         action="Search",
         input_label="Question or error",
-        output_label="Grouped, linked results",
+        output_label="Linked results with a short answer",
+        flow="Ask a question → search sources → AI summarizes the useful results",
         examples=(
             ("Reddit fix", "latest real-world fix for a Python Textual focus bug"),
             ("YouTube walkthrough", "recent video walkthrough fixing Windows Python packaging"),
-            ("GitHub issue", "current workaround for a breaking library regression"),
+            ("GitHub issue", "find the current workaround for a breaking library regression"),
         ),
         avoid="reading one known URL; use Read for that",
     )
@@ -419,12 +430,13 @@ class ReadPane(ToolPane):
     META = ToolMeta(
         key="read",
         title="Read",
-        purpose="Any URL, video or feed as clean text. Extraction runs locally.",
+        purpose="Turn a URL, video, or feed into readable text.",
         request_estimate="0",
         group="Core",
         action="Fetch",
         input_label="URL, video, or feed",
-        output_label="Clean Markdown",
+        output_label="Readable Markdown",
+        flow="Paste a URL → fetch it → get readable text",
         examples=(
             ("Example page", "https://example.com"),
             ("Python docs", "https://docs.python.org/3/whatsnew/"),
@@ -601,18 +613,19 @@ class ModelsPane(ToolPane):
     META = ToolMeta(
         key="models",
         title="Models",
-        purpose="Explore catalog costs, run live health probes, and assign tool role routes.",
+        purpose="See the live model list, check availability, and choose each role’s model.",
         request_estimate="0",
         group="Core",
         action="Reload catalog",
-        input_label="Filter catalog",
-        output_label="Role routes",
+        input_label="Filter model names",
+        output_label="Models, health, and role settings",
+        flow="Choose a tab → inspect models → set a role if needed",
         examples=(
             ("GPT models", "gpt"),
             ("Claude models", "claude"),
             ("Fast models", "flash"),
         ),
-        avoid="confusing combined views; use the 3 dedicated tabs for catalog, health, and routes",
+        avoid="changing a role when you only want a one-off model comparison",
     )
     EXAMPLE_SELECTOR = "#model-filter"
     RESULT_SELECTOR = "#models-catalog-table"
@@ -650,7 +663,7 @@ class ModelsPane(ToolPane):
         with TabbedContent(initial="tab-catalog"):
             with TabPane("1. Catalog & Costs", id="tab-catalog"):
                 with Horizontal(id="model-filter-row"):
-                    yield Input(placeholder="Type to filter model names (e.g. gpt, kimi, flash)…", id="model-filter")
+                    yield ModelsFilterInput(placeholder="Type to filter model names (e.g. gpt, kimi, flash)…", id="model-filter")
                     yield Button("Credit costs", id="models-import")
                     yield Button("Reload", id="models-reload")
                 yield DataTable(id="models-catalog-table", cursor_type="row")
@@ -661,12 +674,16 @@ class ModelsPane(ToolPane):
                 yield DataTable(id="models-ping-table", cursor_type="row")
 
             with TabPane("3. Role Routes Configuration", id="tab-routes"):
+                yield Static("1/2/3 switch tabs here · choose a row, then set that role’s model.", classes="core-flow")
                 yield Static("These 5 routes dictate which model powers each tool across the toolbelt:", classes="core-flow")
                 yield DataTable(id="models-routes-table", cursor_type="row")
                 yield Static("Select a row above, then click a button below to change that role's assigned model:", classes="core-flow")
                 with Horizontal(classes="route-assign-row"):
                     for role in ("default", "vision", "ocr", "power", "image"):
                         yield Button(f"Set → {role.upper()}", id=f"models-assign-{role}")
+    def _show_tab(self, tab_id: str) -> None:
+        self.query_one(TabbedContent).active = tab_id
+
     def on_mount(self) -> None:
         cat_table = self.query_one("#models-catalog-table", DataTable)
         cat_table.add_columns("MODEL NAME", "CREDIT COST", "CONTEXT SIZE", "CAPABILITIES")
@@ -842,6 +859,9 @@ class ModelsPane(ToolPane):
                 self.app.record_activity("models", "error", str(exc))
                 return
             self._models = models
+            if not self.is_mounted or not self.query("#models-catalog-table"):
+                self.app.record_activity("models", "ok", f"loaded {len(models)} models")
+                return
             self._populate(self.query_one("#model-filter", Input).value)
             self._refresh_routes()
             self.app.record_activity("models", "ok", f"loaded {len(models)} models")
