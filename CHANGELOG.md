@@ -5,7 +5,10 @@ All notable changes to the Atessa Toolbelt project will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-08-15
+
+First public release. The workbench was cleaned up enough to publish as an
+open repository at [DrReeko/atessa-workbench](https://github.com/DrReeko/atessa-workbench).
 
 ### Added
 - **Live theme switching in the TUI:** `Ctrl+T` (or the `Theme` binding) now
@@ -23,10 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   quits — the notification reminds you that `ctrl+q` quits.
 
 ### Removed
-- **Voice feature removed entirely:** `atessa-voice`, the TUI Voice pane,
-  the `audio` model role, local audio playback (`atessa_tui/audio.py`), and
-  the `atessa-transcribe` placeholder are gone. No working speech model
-  exists on the proxy.
+- **Voice on permanent hold:** `atessa-voice`, the TUI Voice pane, the
+  `audio` model role, local audio playback (`atessa_tui/audio.py`), and the
+  `atessa-transcribe` placeholder are out of this release. The Atessa voice
+  model is not fully implemented, so this stays on permanent hold.
 
 ### Fixed
 - **Themes now actually switch:** the palette tokens were hard-coded as CSS

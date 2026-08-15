@@ -1,6 +1,6 @@
 [project]
 name = "atessa-tui"
-version = "0.3.0b1"
+version = "0.3.0"
 description = "Atessa Toolbelt - portable CLI and TUI access to the atessa proxy"
 requires-python = ">=3.10"
 dependencies = [
