@@ -1,9 +1,10 @@
 # Changelog
 
-All notable changes to the Atessa Toolbelt project will be documented in this file.
+This is a customer-made, fan-built repository. It has no association with
+[atessa.top](https://atessa.top) in any way other than being a fan of the
+service.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to the Atessa Toolbelt project will be documented in this file.
 
 ## [0.3.0] - 2026-08-15
 
