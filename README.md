@@ -1,7 +1,11 @@
 # Atessa Toolbelt
 
 > **A Note from the Author:**  
-> I built this toolbelt for myself because I use these AI models and reselling proxy APIs all day, every day. I wrapped standard security methodologies into a fast, portable TUI and CLI workflow that works across Windows, Linux, and macOS. I've tried to generalize it for the developer community, but I don't have a ton of time to clean every single edge case up right now. Feel free to use it, adapt it, and inspect the code—but please be kind as not all functions are tested fully!
+> Sharing this slop by request... I built this toolbelt for myself because I use these models all day, every day. I wrapped standard but poorly understood security methodologies into a fast, portable TUI and CLI workflow that works across Windows, Linux, and macOS. You'll find a ton of AI slop also... I've tried to generalize it for you guys, but I don't have a ton of time to clean the edge cases up right now. Feel free to use it, adapt it, sell it, chew it, and inspect it—but please be kind as not all functions are tested fully!  
+>  
+> **THIS IS A BROKEN, SECURITY NIGHTMARE. DON'T USE THIS ON A PRODUCTION MACHINE!!! YOU'VE BEEN WARNED!!**  
+>  
+> *Batteries not included. Your mile may vary. Items settled during shipping. Hide your cat.*
 
 ---
 
