@@ -1,9 +1,5 @@
 # Changelog
 
-This is a customer-made, fan-built repository. It has no association with
-[atessa.top](https://atessa.top) in any way other than being a fan of the
-service.
-
 All notable changes to the Atessa Toolbelt project will be documented in this file.
 
 ## [0.3.0] - 2026-08-15

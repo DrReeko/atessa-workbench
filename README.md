@@ -1,5 +1,12 @@
 # Atessa Toolbelt
 
+## About
+
+This is a customer-made, fan-built repository. It has no association with
+[atessa.top](https://atessa.top) in any way other than being a fan of the
+service.
+
+
 > **A Note from the Author:**  
 > Sharing this slop by request... I built this toolbelt for myself because I use these models all day, every day. I wrapped standard but poorly understood security methodologies into a fast, portable TUI and CLI workflow that works across Windows, Linux, and macOS. You'll find a ton of AI slop also... I've tried to generalize it for you guys, but I don't have a ton of time to clean the edge cases up right now. Feel free to use it, adapt it, sell it, chew it, and inspect it—but please be kind as not all functions are tested fully!  
 >  
